@@ -3,13 +3,13 @@ package com.tencent.iot.explorer.link.kitlink.fragment
 import android.view.View
 import com.tencent.iot.explorer.link.App
 import com.tencent.iot.explorer.link.R
+import com.tencent.iot.explorer.link.core.log.L
 import com.tencent.iot.explorer.link.kitlink.activity.*
 import com.tencent.iot.explorer.link.kitlink.response.BaseResponse
 import com.tencent.iot.explorer.link.kitlink.response.UserInfoResponse
 import com.tencent.iot.explorer.link.kitlink.util.HttpRequest
 import com.tencent.iot.explorer.link.mvp.IPresenter
 import com.tencent.iot.explorer.link.kitlink.util.MyCallback
-import com.tencent.iot.explorer.link.util.L
 import com.tencent.iot.explorer.link.util.T
 import com.tencent.iot.explorer.link.util.picture.imp.ImageManager
 import kotlinx.android.synthetic.main.fragment_me.*
@@ -59,7 +59,8 @@ class MeFragment : BaseFragment(), View.OnClickListener, MyCallback {
                 jumpActivity(MessageActivity::class.java)
             }
             tv_me_help -> {
-                jumpActivity(HelpCenterActivity::class.java)
+//                jumpActivity(HelpCenterActivity::class.java)
+                jumpActivity(HelpWebViewActivity::class.java)
             }
             tv_me_feedback -> {
                 jumpActivity(FeedbackActivity::class.java)

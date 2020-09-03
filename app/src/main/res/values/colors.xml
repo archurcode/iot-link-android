@@ -33,6 +33,7 @@
     <color name="black_333333">#333333</color>
     <color name="black_888888">#888888</color>
     <color name="black_999999">#999999</color>
+    <color name="black_15161A">#15161A</color>
     <!--    灰色-->
     <color name="gray_bbbbbb">#BBBBBB</color>
     <color name="gray_cccccc">#CCCCCC</color>
@@ -46,10 +47,12 @@
     <color name="gray_F7F9FA">#F7F9FA</color>
     <color name="gray_e6e6e6">#E6E6E6</color>
     <color name="gray_e0e0e0">#E0E0E0</color>
+    <color name="gray_666666">#666666</color>
 
     <!--红色-->
     <color name="red_eb3d3d">#EB3D3D</color>
     <color name="red_e54545">#E54545</color>
+    <color name="red_FA5151">#FA5151</color>
 
     <!--绿色-->
     <color name="green_1aad19">#1AAD19</color>
@@ -98,5 +101,12 @@
     <!--<color name="corner">@android:color/white</color>-->
     <color name="corner">@color/red</color>
     <color name="surrounding_area">@color/black_translucent</color>
+    <color name="uncomplete_progress">#FFBBBBBB</color>
+    <color name="dialog_background">#AA333333</color>
+    <color name="complete_progress">#FF006EFF</color>
+    <color name="btn_pressed">#55444444</color>
+    <color name="btn_normal">#00ffffff</color>
+    <color name="upgrade_color">#FFFF8C00</color>
+    <color name="line_grey_color">#FFE5E5E5</color>
 
 </resources>

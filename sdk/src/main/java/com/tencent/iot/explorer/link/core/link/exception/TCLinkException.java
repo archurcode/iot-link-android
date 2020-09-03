@@ -1,9 +1,5 @@
 package com.tencent.iot.explorer.link.core.link.exception;
 
-/**
- * Created by rongerwu on 2018/9/13.
- * Copyright (c) 2018 Tencent Cloud. All Rights Reserved.
- */
 public class TCLinkException extends Exception {
     private String mErrorCode = "unknown";
     private String mErrorMessage = "unknown";
@@ -37,3 +33,4 @@ public class TCLinkException extends Exception {
         return mErrorMessage;
     }
 }
+

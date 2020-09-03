@@ -2,6 +2,9 @@ apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
 apply plugin: 'maven-publish'
+apply from: "../parse_json.gradle"
+apply plugin: 'signing'
+
 android {
     compileSdkVersion 29
     buildToolsVersion "29.0.2"
@@ -11,7 +14,7 @@ android {
         minSdkVersion 19
         targetSdkVersion 29
         versionCode 1
-        versionName "1.0"
+        versionName rootProject.ext.android.versionName
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -31,26 +34,96 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'androidx.appcompat:appcompat:1.1.0'
     implementation 'androidx.core:core-ktx:1.2.0'
+    implementation 'com.alibaba:fastjson:1.2.73'
+    implementation "com.tencent.iot.thirdparty.android:esptouch:0.3.7.2"
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'androidx.test:runner:1.2.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
-    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'], exclude: [])
-    api files('libs/fastjson-1.2.5.jar')
     //WebSocket
     implementation "org.java-websocket:Java-WebSocket:1.4.0"
     //kotlin协程
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.4'
-
 }
 
-def libVersion = '1.0.0-SNAPSHOT'
+task androidJavadocs(type: Javadoc) {
+    failOnError false
+    source = android.sourceSets.main.java.srcDirs
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+    android.libraryVariants.all { variant ->
+        if (variant.name == 'release') {
+            owner.classpath += variant.javaCompile.classpath
+        }
+    }
+    exclude '**/R.html', '**/R.*.html', '**/index.html'
+}
+
+task androidJavadocsJar(type: Jar, dependsOn: androidJavadocs) {
+    classifier = 'javadoc'
+    from androidJavadocs.destinationDir
+}
+
+task androidSourcesJar(type: Jar) {
+    classifier = 'sources'
+    from android.sourceSets.main.java.srcDirs
+}
+
+def libVersion = rootProject.ext.android.versionNameStr + '-SNAPSHOT'
+ext.isReleaseVersion = !libVersion.endsWith("SNAPSHOT")
 publishing {
     publications {
         aar(MavenPublication) {
             groupId 'com.tencent.iot.explorer'
-            artifactId 'iot-sdk-android'
+            artifactId 'explorer-link-android'
             version libVersion
-            artifact file('build/outputs/aar/sdk-debug.aar')
+            artifact(androidSourcesJar)
+            artifact(androidJavadocsJar)
+            artifact file('build/outputs/aar/sdk-release.aar')
+
+            pom {
+                name = 'explorer link android'
+                description = 'Tencent Link Android library'
+                url = 'https://github.com/tencentyun/iot-link-android/tree/master/sdk'
+                licenses {
+                    license {
+                        name = 'Tencent Binary License'
+                        url = 'https://github.com/tencentyun/iot-link-android/blob/master/sdk/LICENSE'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'tencent_archurtan'
+                        name = 'Tencent archurtan'
+                        email = 'archurtan@tencent.com'
+                    }
+                }
+                scm {
+                    url = 'scm:git@github.com:tencentyun/iot-link-android.git'
+                    connection = 'scm:git@github.com:tencentyun/iot-link-android.git'
+                    developerConnection = 'scm:git@github.com:tencentyun/iot-link-android.git'
+                }
+            }
+
+            pom.withXml {
+                def dependenciesNode = asNode().appendNode('dependencies')
+                configurations.implementation.allDependencies.withType(ModuleDependency) { ModuleDependency dp ->
+                    if (dp.version != "unspecified") { // 过滤项目内library引用
+                        def dependencyNode = dependenciesNode.appendNode('dependency')
+                        dependencyNode.appendNode('groupId', dp.group)
+                        dependencyNode.appendNode('artifactId', dp.name)
+                        dependencyNode.appendNode('version', dp.version)
+
+                        // for exclusions
+                        if (dp.excludeRules.size() > 0) {
+                            def exclusions = dependencyNode.appendNode('exclusions')
+                            dp.excludeRules.each { ExcludeRule ex ->
+                                def exclusion = exclusions.appendNode('exclusion')
+                                exclusion.appendNode('groupId', ex.group)
+                                exclusion.appendNode('artifactId', ex.module)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     repositories {
@@ -59,9 +132,15 @@ publishing {
             def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots"
             url = libVersion.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
             credentials {
-                username = System.getenv("SONATYPE_USERNAME")
-                password = System.getenv("SONATYPE_PASSWORD")
+                username = System.getenv("IOT_SONATYPE_USERNAME")
+                password = System.getenv("IOT_SONATYPE_PASSWORD")
             }
         }
+    }
+}
+
+signing {
+    if (isReleaseVersion) {
+        sign publishing.publications.aar
     }
 }

@@ -1,14 +1,16 @@
 name: Android Release CI
 
 on:
-  push:
-    tags:
-      - '*'
+  release:
+    types: [published]
 
 env:
-  SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-  SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-  RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+  IOT_SONATYPE_USERNAME: ${{ secrets.IOT_SONATYPE_USERNAME }}
+  IOT_SONATYPE_PASSWORD: ${{ secrets.IOT_SONATYPE_PASSWORD }}
+  IOT_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.IOT_RELEASE_KEYSTORE_PASSWORD }}
+  GPG_DECRYPT_PASSPHRASE: ${{ secrets.GPG_DECRYPT_PASSPHRASE }}
+  IOT_GPG_KEYNAME: ${{ secrets.IOT_GPG_KEYNAME }}
+  IOT_GPG_PASSPHRASE: ${{ secrets.IOT_GPG_PASSPHRASE }}
 
 jobs:
   build:
@@ -18,20 +20,35 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: |
-          rm -rf opensource_keystore.jks app-config.json app/google-services.json
-          gpg -d --passphrase "${{ secrets.GPG_DECRYPT_PASSPHRASE }}" --batch .github/tencent_official_keystore.jks.asc > tencent_official_keystore.jks
-          gpg -d --passphrase "${{ secrets.GPG_DECRYPT_PASSPHRASE }}" --batch .github/app-config.json.asc > app-config.json
-          gpg -d --passphrase "${{ secrets.GPG_DECRYPT_PASSPHRASE }}" --batch .github/app/google-services.json.asc > app/google-services.json
+          rm -rf app-config.json app/google-services.json
+          gpg -d --passphrase "$GPG_DECRYPT_PASSPHRASE" --batch --quiet .github/tencent_official_keystore.jks.asc > tencent_official_keystore.jks
+          gpg -d --passphrase "$GPG_DECRYPT_PASSPHRASE" --batch --quiet .github/app-config.json.asc > app-config.json
+          gpg -d --passphrase "$GPG_DECRYPT_PASSPHRASE" --batch --quiet .github/app/google-services.json.asc > app/google-services.json
+          gpg -d --passphrase "$GPG_DECRYPT_PASSPHRASE" --batch --quiet .github/sdk/secring.gpg.asc > secring.gpg
       - name: set up JDK 1.8
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
+      - name: install fir
+        run: sudo gem install fir-cli
+      - name: Fix App Version
+        run: |
+          rtt=$(git describe --tags `git rev-list --tags --max-count=1`)
+          rt=${rtt#*v}
+          rc=$(git rev-parse --short HEAD)
+
+          sed -i 's#def versionAppName.*#def versionAppName = \"'$rt'+git.'$rc'\"#g' config.gradle
+      - name: Update Values of Signing
+        run: |
+          export KEY_ID_OF_SIGN=$IOT_GPG_KEYNAME
+          export PASSWORD_OF_SIGN=$IOT_GPG_PASSPHRASE
+          sh .github/scripts/updateValuesForSign.sh
       - name: Adapt build.gradle from debug to release
         run: |
           sed -i 's#opensource_keystore#tencent_official_keystore#g' app/build.gradle
           sed -i '/opensource {/, +3d' app/build.gradle
-          sed -i 's#//*##g' app/build.gradle
-          sed -i "s#'111222'#System.getenv(\"RELEASE_KEYSTORE_PASSWORD\")#g" app/build.gradle
+          sed -i 's#//-##g' app/build.gradle
+          sed -i "s#'111222'#System.getenv(\"IOT_RELEASE_KEYSTORE_PASSWORD\")#g" app/build.gradle
           sed -i 's#sdk-debug#sdk-release#g' sdk/build.gradle
           sed -i 's#-SNAPSHOT##g' sdk/build.gradle
       - name: Build with Gradle
@@ -40,11 +57,24 @@ jobs:
         run: ./gradlew assembleTencentOfficial
       - name: Publish aar to Maven
         run: ./gradlew publish
-      - name: Archive the apk
+      - name: Encrypt Apk
+        run: |
+          gpg --batch --passphrase "$GPG_DECRYPT_PASSPHRASE" -c app/build/outputs/apk/tencentOfficial/debug/*.apk
+          gpg --batch --passphrase "$GPG_DECRYPT_PASSPHRASE" -c app/build/outputs/apk/tencentOfficial/release/*.apk
+      - name: Archive the encrypted apk
         uses: actions/upload-artifact@v2
         with:
-          path: app/build/outputs/apk/tencentOfficial/release/*.apk
-      - name: Upload apk to PGY
+          path: app/build/outputs/apk/tencentOfficial/release/*.apk.gpg
+      - name: Rename Release APK
         run: |
-          apk=$(ls app/build/outputs/apk/tencentOfficial/release/*.apk)
-          curl -F "file=@${apk}" -F '_api_key=${{ secrets.RELEASE_PGYER_API_KEY }}' https://www.pgyer.com/apiv2/app/upload
+          APK_PATH=$(ls app/build/outputs/apk/tencentOfficial/release/*.apk.gpg)
+          cp $APK_PATH iot-link-android.apk.gpg
+      - name: Upload Release apk to Asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: iot-link-android.apk.gpg
+          asset_name: iot-link-android.apk.gpg
+          asset_content_type: application/zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

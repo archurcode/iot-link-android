@@ -28,6 +28,15 @@ object RequestCode {
     const val modify_nick = 1022
     const val find_phone_user = 1023
     const val find_email_user = 1024
+    const val phone_verifycode_login = 1025
+    const val email_verifycode_login = 1026
+    const val bind_wx = 1027
+    const val cancel_account = 1028
+    const val set_unit_of_temperature = 1029
+    const val get_global_config = 1030
+    const val set_region = 1031
+    const val get_last_version = 1032
+    const val get_region_list = 1033
 
     /*************用户接口结束**************/
 
@@ -93,6 +102,7 @@ object RequestCode {
     const val get_share_token = 6006
     const val get_share_device_info = 6007
     const val bind_share_device = 6008
+    const val token_ticket = 6005
 
     /*************设备分享接口结束**************/
 

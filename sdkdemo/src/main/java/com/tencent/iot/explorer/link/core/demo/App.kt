@@ -1,6 +1,7 @@
 package com.tencent.iot.explorer.link.core.demo
 
 import android.app.Application
+import androidx.multidex.MultiDex
 import com.tencent.iot.explorer.link.core.auth.IoTAuth
 import com.tencent.iot.explorer.link.core.auth.entity.User
 import com.tencent.iot.explorer.link.core.auth.listener.LoginExpiredListener
@@ -26,6 +27,8 @@ class App : Application() {
                 L.d("用户登录过期")
             }
         })
+        IoTAuth.registerSharedBugly(this) //接入共享式bugly
+        MultiDex.install(this)
     }
 
     override fun onTerminate() {

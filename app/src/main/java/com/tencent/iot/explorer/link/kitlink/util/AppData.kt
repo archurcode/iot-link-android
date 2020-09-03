@@ -3,10 +3,10 @@ package com.tencent.iot.explorer.link.kitlink.util
 import android.content.Context
 import android.text.TextUtils
 import com.tencent.iot.explorer.link.App
+import com.tencent.iot.explorer.link.core.log.L
 import com.tencent.iot.explorer.link.kitlink.activity.BaseActivity
 import com.tencent.iot.explorer.link.kitlink.consts.CommonField
 import com.tencent.iot.explorer.link.kitlink.entity.*
-import com.tencent.iot.explorer.link.util.L
 import com.tencent.iot.explorer.link.util.SharePreferenceUtil
 import com.tencent.iot.explorer.link.customview.recyclerview.SelectedArrayList
 import java.util.*
@@ -30,6 +30,9 @@ class AppData private constructor() {
     //用户
     private var user: User? = null
     var userInfo = UserInfo()
+    var userSetting = UserSetting()
+    var regionId = "1"
+    var region = "ap-guangzhou"
 
     //activity列表
     val activityList = LinkedList<BaseActivity>()
@@ -172,5 +175,9 @@ class AppData private constructor() {
         roomList.clear()
         deviceList.clear()
         shareDeviceList.clear()
+        SharePreferenceUtil.clearString(App.activity, App.CONFIG, CommonField.USER_ID)
+        SharePreferenceUtil.clearString(App.activity, App.CONFIG, CommonField.EXPIRE_AT)
+        SharePreferenceUtil.clearString(App.activity, App.CONFIG, CommonField.TOKEN)
+        user = User()
     }
 }

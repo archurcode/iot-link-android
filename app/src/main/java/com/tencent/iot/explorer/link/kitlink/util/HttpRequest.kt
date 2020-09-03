@@ -2,17 +2,16 @@ package com.tencent.iot.explorer.link.kitlink.util
 
 import android.text.TextUtils
 import android.util.Log
-import com.tencent.iot.explorer.link.App
-import com.tencent.iot.explorer.link.BuildConfig
+import com.tencent.iot.explorer.link.*
+import com.tencent.iot.explorer.link.core.link.entity.DeviceInfo
+import com.tencent.iot.explorer.link.core.log.L
+import com.tencent.iot.explorer.link.core.utils.IPUtil
 import com.tencent.iot.explorer.link.kitlink.consts.CommonField
-import com.tencent.iot.explorer.link.kitlink.device.DeviceInfo
 import com.tencent.iot.explorer.link.kitlink.response.BaseResponse
 import com.tencent.iot.explorer.link.retrofit.StringRequest
-import com.tencent.iot.explorer.link.util.L
 import java.util.*
 import com.tencent.iot.explorer.link.retrofit.Callback
 import com.tencent.iot.explorer.link.util.T
-import com.tencent.iot.explorer.link.util.ip.IPUtil
 import kotlin.collections.HashMap
 
 /**
@@ -26,7 +25,7 @@ class HttpRequest private constructor() {
 
     init {
         //初始化请求
-        StringRequest.instance.init(HOST)
+        StringRequest.instance.init(OEM_APP_API)
     }
 
     companion object {
@@ -35,16 +34,19 @@ class HttpRequest private constructor() {
         const val APP_KEY = BuildConfig.TencentIotLinkAppkey
         const val APP_SECRET = BuildConfig.TencentIotLinkAppSecret
 
-        const val HOST = "https://iot.cloud.tencent.com/api/"
-        const val EXPLORER_API = "exploreropen/appapi"
-        const val APP_API = "studioapp"
-        //        const val APP_API = "studioapp/appapi"
-        const val TOKEN_API = "exploreropen/tokenapi"
-        const val GET_BIND_DEV_TOKEN_API = "studioapp/tokenapi"
-        const val APP_COS_AUTH = "studioapp/AppCosAuth"
-//         "https://iot.cloud.tencent.com/api/exploreropen/appapi"
+        // 公版&开源体验版使用  当在 app-config.json 中配置 TencentIotLinkAppkey TencentIotLinkAppSecret 后，将自动切换为 OEM 版本。
+        const val STUDIO_BASE_URL = "https://iot.cloud.tencent.com/api/studioapp"
+        const val STUDIO_BASE_URL_FOR_LOGINED = "https://iot.cloud.tencent.com/api/studioapp/tokenapi"
+
+        // OEM App 使用
+        const val OEM_APP_API = "https://iot.cloud.tencent.com/api/exploreropen/appapi" // 需要替换为自建后台服务地址
+        const val OEM_TOKEN_API = "https://iot.cloud.tencent.com/api/exploreropen/tokenapi"  // 可安全在设备端调用。
+
+        const val APP_COS_AUTH = "https://iot.cloud.tencent.com/api/studioapp/AppCosAuth"
         const val BUSI_APP = "studioapp"
         const val BUSI_OPENSOURCE = "studioappOpensource"
+
+        val ANDROID_ID = CommonUtils.getAndroidID()
     }
 
     /**
@@ -65,6 +67,7 @@ class HttpRequest private constructor() {
         param["AppKey"] = APP_KEY
         param["Timestamp"] = System.currentTimeMillis() / 1000
         param["Nonce"] = Random().nextInt(10)
+        param["RegionId"] = App.data.regionId
         return param
     }
 
@@ -80,6 +83,7 @@ class HttpRequest private constructor() {
         param["Timestamp"] = System.currentTimeMillis() / 1000
         param["Nonce"] = Random().nextInt(10)
         param["AccessToken"] = App.data.getToken()
+        param["RegionId"] = App.data.regionId
         return param
     }
 
@@ -91,41 +95,31 @@ class HttpRequest private constructor() {
         return param
     }
 
-    private fun chargeUrlAppType(): Boolean {
-        if (BuildConfig.TencentIotLinkAppkey.equals(CommonField.NULL_STR)
-            || TextUtils.isEmpty(BuildConfig.TencentIotLinkAppkey)) {
-            return false
-
-        } else if (BuildConfig.TencentIotLinkAppkey.equals(CommonField.IOT_APP_KEY)) {
-            return false
-        }
-
-        return true
-    }
-
     /**
-     * 未登录请求
+     * 未登录请求（包含登录接口），接入层接口，此处为示例
+     * 自建的接入服务器需要实现接入层接口
      */
     private fun postJson(param: HashMap<String, Any>, callback: MyCallback, reqCode: Int) {
         val action = param["Action"]
-//        param.remove("Action")
-//        val json = JsonManager.toJson(sign(param))
         var json = ""
         var api = ""
+        var isOEM = false
+        var host = ""
 
-        if (!chargeUrlAppType()) {
+        if (!App.isOEMApp()) {// 公版&开源版
             param["AppID"] = T.getContext().applicationInfo.packageName
             json = JsonManager.toJson(param)
-            api = if (App.DEBUG_VERSION) "$APP_API/$action" + "?uin=weichuantest" else "$APP_API/$action"
-
-        } else {
+            host = STUDIO_BASE_URL
+            api = "$action" + "?uin=$ANDROID_ID"
+        } else {// OEM版
+            host = OEM_APP_API
             json = JsonManager.toJson(sign(param))
-            api = if (App.DEBUG_VERSION) "$EXPLORER_API/$action" + "?uin=weichuantest" else "$EXPLORER_API/$action"
-
+            isOEM = true
+            api = "$action"
         }
 
         L.e("api=$api")
-        StringRequest.instance.postJson(api, json, object : Callback {
+        StringRequest.instance.postJson(host, api, json, object : Callback {
             override fun fail(msg: String?, reqCode: Int) {
                 callback.fail(msg, reqCode)
             }
@@ -133,8 +127,23 @@ class HttpRequest private constructor() {
             override fun success(json: String?, reqCode: Int) {
                 L.e("响应${param["Action"]}", json ?: "")
                 JsonManager.parseJson(json, BaseResponse::class.java)?.run {
+                    if (reqCode == RequestCode.wechat_login && isOEM
+                        && this.code == ErrorCode.REQ_ERROR_CODE) {// OEM用户使用微信授权登录
+                        this.msg = "请确保已按官网文档接入微信登录"
+                    }
                     callback.success(this, reqCode)
                 }
+            }
+        }, reqCode)
+    }
+
+    fun getRegionList(uri: String, callback: MyCustomCallBack, reqCode: Int) {
+        StringRequest.instance.postJson(STUDIO_BASE_URL, uri, "", object : Callback {
+            override fun fail(msg: String?, reqCode: Int) {
+                callback.fail(msg, reqCode)
+            }
+            override fun success(json: String, reqCode: Int) {
+                callback.success(json, reqCode)
             }
         }, reqCode)
     }
@@ -148,8 +157,16 @@ class HttpRequest private constructor() {
             App.toLogin()
             return
         }
-        val api = if (App.DEBUG_VERSION) TOKEN_API + "?uin=weichuantest" else TOKEN_API
-        StringRequest.instance.postJson(api, json, object : Callback {
+        val api:String
+        val host:String
+        if (!App.isOEMApp()) {// 公版&开源版
+            host = STUDIO_BASE_URL_FOR_LOGINED
+            api = "?uin=$ANDROID_ID"
+        } else {// OEM版
+            host = OEM_TOKEN_API
+            api = ""
+        }
+        StringRequest.instance.postJson(host, api, json, object : Callback {
             override fun fail(msg: String?, reqCode: Int) {
                 callback.fail(msg, reqCode)
             }
@@ -157,10 +174,26 @@ class HttpRequest private constructor() {
             override fun success(json: String?, reqCode: Int) {
                 L.e("响应${param["Action"]}", json ?: "")
                 JsonManager.parseJson(json, BaseResponse::class.java)?.run {
-                    callback.success(this, reqCode)
+                    // 检查特殊情况 token 失效
+                    if (checkRespTokenValid(this)) {
+                        callback.success(this, reqCode)
+                    }
                 }
             }
         }, reqCode)
+    }
+
+    // 处理当使用过期 token 请求时，返回的数据
+    private fun checkRespTokenValid(resp: BaseResponse): Boolean {
+        if (resp.code == ErrorCode.REQ_ERROR_CODE && resp.data != null) {
+            var errMsg = ErrorMessage.parseErrorMessage(resp.data.toString())
+
+            if (errMsg != null && errMsg.Code.equals(ErrorCode.DATA_MSG.ACCESS_TOKEN_ERR)) {
+                App.toLogin()
+                return false
+            }
+        }
+        return true
     }
 
     /**
@@ -172,7 +205,7 @@ class HttpRequest private constructor() {
             App.toLogin()
             return
         }
-        StringRequest.instance.postJson(APP_COS_AUTH, json, object : Callback {
+        StringRequest.instance.postJson(APP_COS_AUTH, "", json, object : Callback {
             override fun fail(msg: String?, reqCode: Int) {
                 callback.fail(msg, reqCode)
             }
@@ -180,13 +213,64 @@ class HttpRequest private constructor() {
             override fun success(json: String?, reqCode: Int) {
                 L.e("响应${param["Action"]}", json ?: "")
                 JsonManager.parseJson(json, BaseResponse::class.java)?.run {
-                    callback.success(this, reqCode)
+                    if (checkRespTokenValid(this)) {
+                        callback.success(this, reqCode)
+                    }
+                }
+            }
+        }, reqCode)
+    }
+
+    /**
+     * 登录后请求
+     */
+    private fun getH5tokenPost(param: HashMap<String, Any>, callback: MyCallback, reqCode: Int) {
+        val json = JsonManager.toJson(param)
+        if (TextUtils.isEmpty(App.data.getToken())) {//登录过期或未登录
+            App.toLogin()
+            return
+        }
+
+        val api: String
+        val host: String
+        if (!App.isOEMApp()) {// 公版&开源版
+            host = STUDIO_BASE_URL_FOR_LOGINED
+            api = "?uin=$ANDROID_ID"
+        } else {// OEM版
+            host = OEM_TOKEN_API
+            api = ""
+        }
+
+        StringRequest.instance.postJson(host, api, json, object : Callback {
+            override fun fail(msg: String?, reqCode: Int) {
+                callback.fail(msg, reqCode)
+            }
+
+            override fun success(json: String?, reqCode: Int) {
+                L.e("响应${param["Action"]}", json ?: "")
+                JsonManager.parseJson(json, BaseResponse::class.java)?.run {
+                    if (checkRespTokenValid(this)) {
+                        callback.success(this, reqCode)
+                    }
                 }
             }
         }, reqCode)
     }
 
     /**************************************  用户接口开始  ************************************************/
+
+    /**
+     * 获取最新 app 版本号
+     *
+     * http://tapd.oa.com/NEW_IOT/markdown_wikis/show/#1220393192001643313
+     */
+    fun getLastVersion(callback: MyCallback) {
+        val param = commonParams("AppGetLatestVersion")
+        param["ClientVersion"] = "0.0.0"
+        param["AppPlatform"] = "android"
+        param["Channel"] = 0
+        postJson(param, callback, RequestCode.get_last_version)
+    }
 
     /**
      * 手机号登录
@@ -212,15 +296,38 @@ class HttpRequest private constructor() {
     }
 
     /**
+     * 手机号验证码登录
+     */
+    fun phoneVerifyCodeLogin(countryCode: String, phone: String, verifyCode: String, callback: MyCallback) {
+        val param = commonParams("AppGetToken")
+        param["Type"] = "phone"
+        param["CountryCode"] = countryCode
+        param["PhoneNumber"] = phone
+        param["VerificationCode"] = verifyCode
+        postJson(param, callback, RequestCode.phone_verifycode_login)
+    }
+
+    /**
+     * 邮箱验证码登录
+     */
+    fun emailVerifyCodeLogin(email: String, verifyCode: String, callback: MyCallback) {
+        val param = commonParams("AppGetToken")
+        param["Type"] = "email"
+        param["Email"] = email
+        param["VerificationCode"] = verifyCode
+        postJson(param, callback, RequestCode.email_verifycode_login)
+    }
+
+    /**
      * 微信登录
      */
     fun wechatLogin(code: String, callback: MyCallback) {
         val param = commonParams("AppGetTokenByWeiXin")
         param["code"] = code
-        if (!chargeUrlAppType()) {
+        if (T.getContext().applicationInfo.packageName.equals(CommonField.OPEN_SOURCE_TAG)) {
             param["busi"] = BUSI_OPENSOURCE
-        } else {
-//            param["busi"] = BUSI_APP
+        } else if (T.getContext().applicationInfo.packageName.equals(CommonField.PUBLISH_TAG)) {
+            param["busi"] = BUSI_APP
         }
 
         postJson(param, callback, RequestCode.wechat_login)
@@ -238,7 +345,7 @@ class HttpRequest private constructor() {
     }
 
     /**
-     * 获取手机验证码
+     * 获取邮箱验证码
      */
     fun sendEmailCode(type: String, email: String, callback: MyCallback) {
         val param = commonParams("AppSendEmailVerificationCode")
@@ -367,6 +474,73 @@ class HttpRequest private constructor() {
     }
 
     /**
+     * 绑定用户邮箱号
+     */
+    fun bindEmail(email: String, code: String, passwd: String, callback: MyCallback) {
+        val param = tokenParams("AppUpdateUser")
+        param["Email"] = email
+        param["VerificationCode"] = code
+        if (!TextUtils.isEmpty(passwd)) param["NewPassword"] = passwd
+        updateUserInfo(param, callback, RequestCode.update_user_info)
+    }
+
+    /**
+     * 绑定用户手机号
+     */
+    fun bindPhone(countryCode: String, phone: String, code: String, passwd: String, callback: MyCallback) {
+        val param = tokenParams("AppUpdateUser")
+        param["CountryCode"] = countryCode
+        param["PhoneNumber"] = phone
+        param["VerificationCode"] = code
+        if (!TextUtils.isEmpty(passwd)) param["NewPassword"] = passwd
+        updateUserInfo(param, callback, RequestCode.update_user_info)
+    }
+
+    /**
+     * 绑定微信
+     */
+    fun bindWX(code: String, callback: MyCallback) {
+        val param = tokenParams("AppUpdateUserByWeiXin")
+        param["code"] = code
+        if (T.getContext().applicationInfo.packageName.equals(CommonField.OPEN_SOURCE_TAG)) {
+            param["busi"] = BUSI_OPENSOURCE
+        } else if (T.getContext().applicationInfo.packageName.equals(CommonField.PUBLISH_TAG)) {
+            param["busi"] = BUSI_APP
+        }
+        postJson(param, callback, RequestCode.bind_wx)
+    }
+
+    /**
+     * 修改用户邮箱号
+     */
+    fun modifyEmail(email: String, code: String, callback: MyCallback) {
+        val param = tokenParams("AppUpdateUser")
+        param["Email"] = email
+        param["VerificationCode"] = code
+        updateUserInfo(param, callback, RequestCode.update_user_info)
+    }
+
+    /**
+     * 修改用户手机号
+     */
+    fun modifyPhone(countryCode: String, phone: String, code: String, callback: MyCallback) {
+        val param = tokenParams("AppUpdateUser")
+        param["CountryCode"] = countryCode
+        param["PhoneNumber"] = phone
+        param["VerificationCode"] = code
+        updateUserInfo(param, callback, RequestCode.update_user_info)
+    }
+
+
+    /**
+     * 账号注销
+     */
+    fun cancelAccount(callback: MyCallback) {
+        val param = tokenParams("AppUserCancelAccount")
+        tokenPost(param, callback, RequestCode.cancel_account)
+    }
+
+    /**
      * 意见反馈
      */
     fun feedback(advise: String, phone: String, pic: String, callback: MyCallback) {
@@ -491,6 +665,33 @@ class HttpRequest private constructor() {
      */
     private fun updateUserInfo(param: HashMap<String, Any>, callback: MyCallback, reqCode: Int) {
         tokenPost(param, callback, reqCode)
+    }
+
+    /**
+     * 设置温度单位
+     */
+    fun setTemperatureUnit(unit: String, callback: MyCallback) {
+        val param = tokenParams("AppUpdateUserSetting")
+        param["TemperatureUnit"] = unit
+        updateUserInfo(param, callback, RequestCode.set_unit_of_temperature)
+    }
+
+    /**
+     * 设置时区
+     */
+    fun setRegion(region: String, callback: MyCallback) {
+        val param = tokenParams("AppUpdateUserSetting")
+        param["Region"] = region
+        updateUserInfo(param, callback, RequestCode.set_region)
+    }
+
+    /**
+     * 拉取全局配置
+     */
+    fun getGlobalConfig(key: String, callback: MyCallback) {
+        val param = commonParams("AppGetGlobalConfig")
+        param["Keys"] = key
+        postJson(param, callback, RequestCode.get_global_config)
     }
 
     /*************************************  用户接口结束   **********************************************/
@@ -732,7 +933,7 @@ class HttpRequest private constructor() {
         param["FamilyId"] = familyId
         param["ProductId"] = deviceInfo.productId
         param["DeviceName"] = deviceInfo.deviceName
-
+        param["RegionId"] = App.data.regionId
         tokenPost(param, callback, RequestCode.wifi_bind_device)
     }
 
@@ -825,6 +1026,7 @@ class HttpRequest private constructor() {
         param["AccessToken"] = App.data.getToken()
         param["IotAppID"] = APP_KEY
         param["UserID"] = App.data.userInfo.UserID
+        param["RegionId"] = App.data.regionId
 
         tokenPost(param, callback, RequestCode.get_bind_device_token)
     }
@@ -841,6 +1043,7 @@ class HttpRequest private constructor() {
         param["IotAppID"] = APP_KEY
         param["UserID"] = App.data.userInfo.UserID
         param["Token"] = App.data.bindDeviceToken
+        param["RegionId"] = App.data.regionId
 
         tokenPost(param, callback, RequestCode.check_device_bind_token_state)
     }
@@ -1018,6 +1221,11 @@ class HttpRequest private constructor() {
         tokenPost(param, callback, RequestCode.share_ticket)
     }
 
+    fun getOneTimeTokenTicket(callback: MyCallback) {
+        val param = tokenParams("AppGetTokenTicket")
+        getH5tokenPost(param, callback, RequestCode.token_ticket)
+    }
+
     /**
      * 票据换取token
      */
@@ -1096,15 +1304,6 @@ class HttpRequest private constructor() {
         val param = tokenParams("AppGetProductsConfig")
         param["ProductIds"] = productIds
         tokenPost(param, callback, RequestCode.get_products_config)
-    }
-
-    fun describeProductConfig(productId: String, type: String, callback: MyCallback) {
-        val param = tokenParams("DescribeProductConfig")
-        param["ProductId"] = productId
-        param["Type"] = type
-        param["Uin"] = "weichuantest"
-        param["AppId"] = APP_KEY
-        tokenPost(param, callback, RequestCode.describe_product_config)
     }
     /****************************************   设备推荐接口结束   *******************************************************/
 

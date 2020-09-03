@@ -8,13 +8,14 @@ import com.example.qrcode.Constant
 import com.example.qrcode.ScannerActivity
 import com.tencent.iot.explorer.link.App
 import com.tencent.iot.explorer.link.R
+import com.tencent.iot.explorer.link.core.link.entity.DeviceInfo
+import com.tencent.iot.explorer.link.core.log.L
+import com.tencent.iot.explorer.link.kitlink.consts.CommonField
 import com.tencent.iot.explorer.link.kitlink.response.BaseResponse
 import com.tencent.iot.explorer.link.kitlink.util.HttpRequest
 import com.tencent.iot.explorer.link.kitlink.util.MyCallback
 import com.tencent.iot.explorer.link.mvp.IPresenter
-import com.tencent.iot.explorer.link.util.L
 import com.tencent.iot.explorer.link.util.T
-import com.tencent.iot.explorer.link.kitlink.device.DeviceInfo
 import kotlinx.android.synthetic.main.activity_add_device.*
 import kotlinx.android.synthetic.main.menu_back_layout.*
 
@@ -62,7 +63,9 @@ class AddDeviceActivity : PActivity(), MyCallback {
     private fun jump() {
         when (type) {
             0 -> {
-                startActivityForResult(Intent(this, ScannerActivity::class.java), 103)
+                var intent = Intent(this, ScannerActivity::class.java)
+                intent.putExtra(Constant.EXTRA_IS_ENABLE_SCAN_FROM_PIC,true)
+                startActivityForResult(intent, CommonField.QR_CODE_REQUEST_CODE)
             }
             1 -> {
                 jumpActivity(SmartConnectActivity::class.java)

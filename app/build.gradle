@@ -37,13 +37,17 @@ android {
             // 还可以添加 'x86', 'x86_64', 'mips', 'mips64'
         }
         manifestPlaceholders = [
-                XG_ACCESS_ID : getValueById('XgAccessId'),
-                XG_ACCESS_KEY: getValueById('XgAccessKey'),
+                XG_ACCESS_ID : '',
+                XG_ACCESS_KEY: '',
                 MAP_SDK_VALUE: getValueById('TencentMapSDKValue')
         ]
         buildConfigField 'String', 'WXAccessAppId', "\"${getValueById('WXAccessAppId')}\""
         buildConfigField 'String', 'TencentIotLinkAppkey', "\"${getValueById('TencentIotLinkAppkey')}\""
         buildConfigField 'String', 'TencentIotLinkAppSecret', "\"${getValueById('TencentIotLinkAppSecret')}\""
+        buildConfigField 'String', 'XgAccessId', "\"${getValueById('XgAccessId')}\""
+        buildConfigField 'String', 'XgAccessKey', "\"${getValueById('XgAccessKey')}\""
+        buildConfigField 'String', 'XgUSAAccessId', "\"${getValueById('XgUSAAccessId')}\""
+        buildConfigField 'String', 'XgUSAAccessKey', "\"${getValueById('XgUSAAccessKey')}\""
         multiDexEnabled true
     }
 
@@ -53,10 +57,10 @@ android {
             applicationId "com.tencent.iot.explorer.link.opensource"
             resValue("string" , "app_name","连连开源体验")
         }
-        //*tencentOfficial {
-        //*    applicationId "com.tencent.iot.explorer.link"
-        //*    resValue("string" , "app_name","腾讯连连")
-        //*}
+        //-tencentOfficial {
+        //-    applicationId "com.tencent.iot.explorer.link"
+        //-    resValue("string" , "app_name","腾讯连连")
+        //-}
     }
 
     buildTypes {
@@ -81,7 +85,12 @@ android {
     applicationVariants.all { variant ->
         variant.outputs.all {
             def date = new Date().format("yyyyMMddHHmmss" , TimeZone.getTimeZone("GMT+08"))
-            outputFileName = "iot-link-android-${date}.apk"
+            if(variant.buildType.name == 'debug') {
+                outputFileName = "iot-link-android-debug-${date}.apk"
+            }
+            if(variant.buildType.name == 'release') {
+                outputFileName = "iot-link-android-release-${date}.apk"
+            }
         }
     }
 }
@@ -118,7 +127,7 @@ dependencies {
     implementation 'com.github.mcxtzhang:SwipeDelMenuLayout:V1.2.3'
     //信鸽推送
     implementation 'com.tencent.jg:jg:1.1'
-    implementation 'com.tencent.tpns:tpns:1.2.0.1-release'
+    implementation 'com.tencent.tpns:tpns:1.2.0.2-release'
     implementation 'androidx.cardview:cardview:1.0.0'
     api 'com.android.support:recyclerview-v7:29.0.0'
     //kotlin协程
@@ -136,8 +145,12 @@ dependencies {
 
     //垂直TabLayout
     implementation 'q.rorbin:VerticalTabLayout:1.2.9'
-    implementation project(path: ':sdk')
 
+    if (findProject(':sdk') != null) {
+        implementation project(path: ':sdk')
+    } else {
+        implementation 'com.tencent.iot.explorer:explorer-link-android:+'
+    }
 
     implementation 'com.google.firebase:firebase-analytics-ktx:17.4.3'
 
@@ -153,6 +166,10 @@ dependencies {
     implementation 'com.squareup.retrofit2:retrofit:2.0.2'
 
     implementation 'com.yangy:YZxing-lib:2.2'
-
+    implementation 'com.alibaba:fastjson:1.2.73'
+    implementation "com.tencent.iot.thirdparty.android:esptouch:0.3.7.2"
+    implementation "com.github.skydoves:progressview:1.0.9"
+    implementation project(path: ':sdk')
+    implementation 'com.belerweb:pinyin4j:2.5.0'
 
 }

@@ -4,12 +4,12 @@ import android.text.TextUtils
 import android.view.View
 import com.tencent.iot.explorer.link.App
 import com.tencent.iot.explorer.link.R
+import com.tencent.iot.explorer.link.core.log.L
 import com.tencent.iot.explorer.link.kitlink.activity.HelpCenterActivity
 import com.tencent.iot.explorer.link.kitlink.activity.SoftApActivity
 import com.tencent.iot.explorer.link.mvp.IPresenter
 import com.tencent.iot.explorer.link.mvp.presenter.ConnectPresenter
 import com.tencent.iot.explorer.link.mvp.view.ConnectView
-import com.tencent.iot.explorer.link.util.L
 import com.tencent.iot.explorer.link.util.T
 import com.tencent.iot.explorer.link.customview.progress.WaveProgress
 import kotlinx.android.synthetic.main.connected.*
@@ -93,9 +93,9 @@ class ConnectProgressFragment(type: Int) : BaseFragment(), ConnectView, View.OnC
     override fun onClick(v: View?) {
         when (v) {
             tv_connect_again -> {
+                presenter.stopConnect()
                 wp_connected.setProgress(0)
                 showConnecting()
-                presenter.stopConnect()
                 onRestartListener?.restart()
             }
             tv_tab_connect_way, tv_add_new_device -> {

@@ -9,5 +9,7 @@ class UserInfo {
     var WxOpenID = ""
     var NickName = ""
     var Avatar = ""
+    var HasPassword = ""
+    var HasWxOpenID = ""
 
 }

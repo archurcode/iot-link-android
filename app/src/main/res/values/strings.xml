@@ -27,8 +27,10 @@
     <string name="back">返回</string>
     <string name="back_home">返回首页</string>
     <string name="q_feedback">问题反馈</string>
-
-
+    <string name="copy">已复制</string>
+    <string name="open_WIFI">请打开 WIFI</string>
+    <string name="download_success">下载成功</string>
+    <string name="download_failed">下载失败</string>
     <!--登陆注册-->
     <string name="wechat_login">微信登录</string>
     <string name="email_login">邮箱登录</string>
@@ -78,6 +80,7 @@
     <string name="help_center">帮助中心</string>
     <string name="feedback">意见反馈</string>
     <string name="about_me">关于我们</string>
+    <string name="current_version">当前版本 </string>
 
     <string name="personal_info">个人信息</string>
     <string name="set_avatar">设置头像</string>
@@ -85,6 +88,7 @@
     <string name="select_local_album">从手机相册选取</string>
     <string name="nick">昵称</string>
     <string name="telephone_number">电话号码</string>
+    <string name="user_id">用户 ID</string>
     <string name="modify_password">修改密码</string>
     <string name="modify_nick">修改昵称</string>
     <string name="bind_phone">手机绑定</string>
@@ -103,6 +107,10 @@
     <string name="toast_register_agreement">请阅读并同意用户协议和隐私政策</string>
     <string name="login_success">登录成功</string>
     <string name="bind_phone_success">手机号绑定成功</string>
+    <string name="get_userId_failed">获取用户 ID 失败</string>
+    <string name="no_need_upgrade">您的应用为最新版本</string>
+    <string name="url_empty">没有可下载路径</string>
+    <string name="unknown_error">未知错误</string>
 
     <!--设备-->
     <string name="my_devices">我的设备</string>
@@ -138,7 +146,7 @@
     <string name="smart_config_first_title">提示灯在快闪</string>
     <string name="smart_config_second_title">连接WI-FI</string>
     <string name="smart_config_second">输入WI-FI密码</string>
-    <string name="smart_config_second_hint">请输入手机连接Wi-Fi密码</string>
+    <string name="smart_config_second_hint">请输入密码</string>
     <string name="smart_config_third_connect_progress">配网进度</string>
 
     <string name="soft_ap_first_title">将设备设置为自助配网模式</string>
@@ -259,6 +267,16 @@
     <string name="device">\t\t设备\t\t</string>
     <string name="family">\t\t家庭\t\t</string>
     <string name="notify">\t\t通知\t\t</string>
+    <string name="open_location_tip">开启定位获取WiFi信息</string>
+    <string name="upgrade_tip">版本升级V2.0</string>
+    <string name="repair_bug">1、修复了一些已知 bug</string>
+    <string name="version_code">版本号</string>
+    <string name="package_size">安装包大小</string>
+    <string name="publish_time">发布时间</string>
+    <string name="next_time">下次再说</string>
+    <string name="upgrade_now">立即升级</string>
+    <string name="upgrading">正在更新，请稍后...</string>
+    <string name="splite_from_name">：</string>
 
     <!--设备分类-->
     <string name="scanned_devices">已发现如下设备</string>
@@ -301,4 +319,82 @@
     <string name="toast_password_not_verify">两次输入的密码不一致</string>
     <string name="toast_login">密码修改成功，请重新登录</string>
     <!--customview end-->
+
+    <string name="welcome_to_use_tencent_ll">欢迎使用腾讯连连</string>
+    <string name="create_new_account">创建新账号</string>
+    <string name="use_existed_account_to_login">使用已有账号登录</string>
+    <string name="account_passwd_login">账号密码登录</string>
+    <string name="verify_code_login">验证码登录</string>
+    <string name="mobile_or_email">手机号码/邮箱地址</string>
+    <string name="other_login_way">其他登录方式</string>
+    <string name="wechat">微信</string>
+    <string name="account_and_safety">账号与安全</string>
+    <string name="phone_number">手机号码</string>
+    <string name="unbind">未绑定</string>
+    <string name="have_bind">已绑定</string>
+    <string name="email">邮箱</string>
+    <string name="account_logout">账号注销</string>
+    <string name="please_input_phonenumber">请输入手机号</string>
+    <string name="please_input_email">请输入邮箱号</string>
+    <string name="please_input_verifycode">请输入验证码</string>
+    <string name="please_set_passwd">请设置您的密码</string>
+    <string name="please_confirm_passwd">请再次确认您的密码</string>
+    <string name="confirm_to_bind">确认绑定</string>
+    <string name="bind_phone_number">绑定手机号</string>
+    <string name="bind_email_number">绑定邮箱号</string>
+    <string name="confirm_to_modify">确认修改</string>
+    <string name="modify_phone">修改手机号</string>
+    <string name="modify_email">修改邮箱号</string>
+    <string name="email_verify_code_modify">邮箱验证码修改</string>
+    <string name="phone_verify_code_modify">手机验证码修改</string>
+    <!--cancel start-->
+    <string name="logout_text">注销</string>
+    <string name="logout_account">注销账号</string>
+    <string name="logout_must_know">注销须知</string>
+    <string name="logout_text_for_attention1">请您确保账号处于安全状态下且是本人申请注销。注销账号是不可恢复的操作，账号被注销后，您账号下的所有信息、数据将被永久删除，无法找回。为避免您的损失，请谨慎进行账号注销操作。</string>
+    <string name="logout_text_will_logout_at">如果您确定“注销账号”，账号将注销于</string>
+    <string name="logout_text_logout_time">2020年8月3日 00:00:00</string>
+    <string name="logout_text_for_attention2">若您在注销日期前登录腾讯连连，则自动撤销“注销账号”申请。</string>
+    <string name="logout_text_for_attention3">注：如腾讯连连账号是通过第三方软件（微信） 进行登录的，您所注销的账号仅影响腾讯连连内的账号与数据，并不会影响您在微信的账号信息。</string>
+    <string name="tencentll_account_logout_agreement">《腾讯连连账号注销协议》</string>
+    <string name="tencentll_account_logout_agreement2">腾讯连连账号注销协议</string>
+    <string name="tencentll_account_logout_agreement3">请阅读并同意腾讯连连账号注销协议</string>
+    <string name="already_known">我已了解</string>
+    <string name="confirm_to_cancel_account_title">确定注销账号吗</string>
+    <string name="confirm_to_cancel_account_content">注销后，此账户下的所有用户数据也将被永久删除</string>
+    <string name="cancel_account_request_success_title">账号已申请注销</string>
+    <string name="cancel_account_request_success_content">如需撤销，请在7日内登录腾讯连连</string>
+    <string name="have_known">知道了</string>
+    <string name="cancel_account_stopped_title">账号注销已终止</string>
+    <string name="cancel_account_stopped_content">由于你在申请“账号注销”后的7天内重新登录，该账号在date提交的“账号注销”申请已被撤销</string>
+    <!--cancel end-->
+
+    <string name="modify_passwd_success">密码修改成功，请重新登录</string>
+    <string name="send_verifycode_success">验证码发送成功</string>
+    <string name="update_phone_success">更新手机号成功</string>
+    <string name="update_email_success">更新邮箱号成功</string>
+    <string name="phone_verifycode_empty">短信验证码为空</string>
+    <string name="email_verifycode_empty">邮箱验证码为空</string>
+    <string name="phone_empty">手机号为空</string>
+    <string name="email_empty">邮箱号为空</string>
+    <string name="two_password_not_same">两次输入的密码不一致</string>
+    <string name="bind_success">绑定成功</string>
+
+    <!--international start-->
+    <string name="avatar">头像</string>
+    <string name="modify_login_passwd">修改登录密码</string>
+    <string name="location_of_account">账户所在地</string>
+    <string name="the_unit_of_temperature">温度单位</string>
+    <string name="time_zone">时区</string>
+    <string name="unset">未设置</string>
+    <string name="celsius_unit">℃</string>
+    <string name="fahrenheit_unit">℉</string>
+    <string name="celsius">C</string>
+    <string name="fahrenheit">F</string>
+    <string name="cancel_account">注销账号</string>
+    <string name="country_china">中国大陆</string>
+    <string name="country_china_en">Chinese Mainland</string>
+    <string name="country_usa">美国</string>
+    <string name="select_timezone">选择时区</string>
+    <!--international end  -->
 </resources>

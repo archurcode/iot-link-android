@@ -2,22 +2,21 @@ package com.tencent.iot.explorer.link.mvp.model
 
 import android.os.Handler
 import android.text.TextUtils
+import com.tencent.iot.explorer.link.App
 import com.tencent.iot.explorer.link.auth.IoTAuth
 import com.tencent.iot.explorer.link.auth.message.payload.Payload
 import com.tencent.iot.explorer.link.auth.message.upload.ArrayString
 import com.tencent.iot.explorer.link.auth.socket.callback.ActivePushCallback
+import com.tencent.iot.explorer.link.core.log.L
 import com.tencent.iot.explorer.link.kitlink.entity.*
-import com.tencent.iot.explorer.link.kitlink.response.BaseResponse
-import com.tencent.iot.explorer.link.kitlink.response.ControlPanelResponse
-import com.tencent.iot.explorer.link.kitlink.response.DeviceDataResponse
-import com.tencent.iot.explorer.link.kitlink.response.DeviceProductResponse
+import com.tencent.iot.explorer.link.kitlink.response.*
 import com.tencent.iot.explorer.link.kitlink.util.HttpRequest
 import com.tencent.iot.explorer.link.kitlink.util.JsonManager
 import com.tencent.iot.explorer.link.kitlink.util.MyCallback
 import com.tencent.iot.explorer.link.kitlink.util.RequestCode
 import com.tencent.iot.explorer.link.mvp.ParentModel
 import com.tencent.iot.explorer.link.mvp.view.ControlPanelView
-import com.tencent.iot.explorer.link.util.L
+import com.tencent.iot.explorer.link.util.T
 import java.util.*
 import kotlin.collections.ArrayList
 
@@ -50,9 +49,6 @@ class ControlPanelModel(view: ControlPanelView) : ParentModel<ControlPanelView>(
     //设备产品信息及面板数据
     val devicePropertyList = LinkedList<DevicePropertyEntity>()
 
-    //主题风格
-    var themeTag = ""
-
     //是否显示导航栏
     private var navBar: NavBar? = null
 
@@ -76,7 +72,7 @@ class ControlPanelModel(view: ControlPanelView) : ParentModel<ControlPanelView>(
                 devicePropertyList.forEach {
                     if (id == it.id) {
                         it.setValue(payload.getValue(id))
-                        view?.showControlPanel(themeTag, navBar, hasTimerCloud)
+                        view?.showControlPanel(navBar, hasTimerCloud)
                         return@set
                     }
                 }
@@ -138,6 +134,13 @@ class ControlPanelModel(view: ControlPanelView) : ParentModel<ControlPanelView>(
     }
 
     /**
+     * 获取温度单位等用户设置
+     */
+    fun getUserSetting() {
+        HttpRequest.instance.getUserSetting(this)
+    }
+
+    /**
      * 转换数值
      */
     private fun isCovertInt(value: String): Boolean {
@@ -166,6 +169,11 @@ class ControlPanelModel(view: ControlPanelView) : ParentModel<ControlPanelView>(
             }
             RequestCode.control_device -> {
                 parseControlDevice(response)
+            }
+            RequestCode.user_setting -> {
+                response.parse(UserSettingResponse::class.java)?.UserSetting?.run {
+                    App.data.userSetting = this
+                }
             }
         }
     }
@@ -202,7 +210,7 @@ class ControlPanelModel(view: ControlPanelView) : ParentModel<ControlPanelView>(
                     }
                 }
             }
-            view?.showControlPanel(themeTag, navBar, hasTimerCloud)
+            view?.showControlPanel(navBar, hasTimerCloud)
         }
     }
 
@@ -221,8 +229,6 @@ class ControlPanelModel(view: ControlPanelView) : ParentModel<ControlPanelView>(
                         hasPanel = true
                         //请求数据
                         requestDeviceData()
-                        //主题
-                        themeTag = getTheme()
                         //合并
                         mergeData()
                     }
@@ -272,7 +278,7 @@ class ControlPanelModel(view: ControlPanelView) : ParentModel<ControlPanelView>(
                 }
         }
         L.e("devicePropertyList", JsonManager.toJson(devicePropertyList) ?: "")
-        view?.showControlPanel(themeTag, navBar, hasTimerCloud)
+        view?.showControlPanel(navBar, hasTimerCloud)
     }
 
     private fun completeProperty(entity: DevicePropertyEntity) {

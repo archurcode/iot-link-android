@@ -2,12 +2,12 @@ package com.tencent.iot.explorer.link.kitlink.activity
 
 import android.text.TextUtils
 import com.tencent.iot.explorer.link.R
+import com.tencent.iot.explorer.link.core.log.L
 import com.tencent.iot.explorer.link.kitlink.fragment.*
 import com.tencent.iot.explorer.link.kitlink.popup.CommonPopupWindow
 import com.tencent.iot.explorer.link.util.T
 import com.tencent.iot.explorer.link.mvp.presenter.GetBindDeviceTokenPresenter
 import com.tencent.iot.explorer.link.mvp.view.GetBindDeviceTokenView
-import com.tencent.iot.explorer.link.util.L
 import com.tencent.iot.explorer.link.util.check.LocationUtil
 import kotlinx.android.synthetic.main.activity_smart_connect.*
 
@@ -34,10 +34,6 @@ class SmartConnectActivity : BaseActivity(), GetBindDeviceTokenView {
         scStepFragment.onNextListener = object : SCStepFragment.OnNextListener {
             override fun onNext() {
                 showFragment(wifiFragment, scStepFragment)
-                showTitle(
-                    getString(R.string.smart_config_second_title),
-                    getString(R.string.cancel)
-                )
                 if (!LocationUtil.isLocationServiceEnable(this@SmartConnectActivity)) {
                     T.showLonger("请您打开手机位置以便获取WIFI名称")
                 }

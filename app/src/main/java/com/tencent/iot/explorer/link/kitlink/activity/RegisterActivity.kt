@@ -1,15 +1,17 @@
 package com.tencent.iot.explorer.link.kitlink.activity
 
 import android.content.Intent
+import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
+import com.tencent.iot.explorer.link.App
 import com.tencent.iot.explorer.link.R
 import com.tencent.iot.explorer.link.kitlink.consts.CommonField
 import com.tencent.iot.explorer.link.kitlink.consts.SocketConstants
+import com.tencent.iot.explorer.link.kitlink.util.CommonUtils
 import com.tencent.iot.explorer.link.mvp.IPresenter
 import com.tencent.iot.explorer.link.mvp.presenter.RegisterPresenter
 import com.tencent.iot.explorer.link.mvp.view.RegisterView
-import com.tencent.iot.explorer.link.util.L
 import com.tencent.iot.explorer.link.util.T
 import com.tencent.iot.explorer.link.util.keyboard.KeyBoardUtils
 import kotlinx.android.synthetic.main.activity_register.*
@@ -24,6 +26,7 @@ class RegisterActivity : PActivity(), RegisterView, View.OnClickListener {
 
     companion object {
         const val ACCOUNT_TYPE = "account_type"
+        const val ACCOUNT_NUMBER = "account_number"
     }
 
     private lateinit var presenter: RegisterPresenter
@@ -32,6 +35,8 @@ class RegisterActivity : PActivity(), RegisterView, View.OnClickListener {
 
     private lateinit var phoneView: View
     private lateinit var emailView: View
+
+    private val ANDROID_ID = CommonUtils.getAndroidID()
 
     override fun getPresenter(): IPresenter? {
         return presenter
@@ -42,6 +47,8 @@ class RegisterActivity : PActivity(), RegisterView, View.OnClickListener {
     }
 
     override fun initView() {
+        App.data.regionId = "1"
+        App.data.region = "ap-guangzhou"
         presenter = RegisterPresenter(this)
         iv_back.setColorFilter(resources.getColor(R.color.black_333333))
         tv_title.text = getString(R.string.mobile_phone_register)
@@ -52,6 +59,24 @@ class RegisterActivity : PActivity(), RegisterView, View.OnClickListener {
                 true -> showPhoneRegister()
                 false -> showEmailRegister()
             }
+        }
+        intent?.let {
+            val account = intent?.getStringExtra(ACCOUNT_NUMBER)?:""
+            if (!TextUtils.isEmpty(account)) {
+                if (account.contains("@"))
+                    emailView.et_register_email.setText(account)
+                else
+                    phoneView.et_register_phone.setText(account)
+            }
+        }
+        if (presenter.isAgreement()) {
+            iv_register_agreement.setImageResource(R.mipmap.icon_selected)
+        } else {
+            iv_register_agreement.setImageResource(R.mipmap.icon_unselected)
+        }
+        if (!CommonUtils.isChineseSystem()) {
+            phoneView.tv_register_to_country.text = getString(R.string.country_china_en)
+            emailView.tv_register_to_country_email.text = getString(R.string.country_china_en)
         }
     }
 
@@ -78,6 +103,9 @@ class RegisterActivity : PActivity(), RegisterView, View.OnClickListener {
 
         phoneView.tv_register_to_country.setOnClickListener(this)
         phoneView.iv_register_to_country.setOnClickListener(this)
+
+        emailView.tv_register_to_country_email.setOnClickListener(this)
+        emailView.iv_register_to_country_email.setOnClickListener(this)
 
         iv_register_agreement.setOnClickListener(this)
         tv_register_user_agreement.setOnClickListener(this)
@@ -112,22 +140,28 @@ class RegisterActivity : PActivity(), RegisterView, View.OnClickListener {
             }
             tv_register_user_agreement -> {//用户协议
                 val intent = Intent(this, WebActivity::class.java)
-                intent.putExtra("title", getString(R.string.register_agree_2))
-//                intent.putExtra("text", "user_agreementV1.0.htm")
-                intent.putExtra(
-                    "text",
-                    "https://docs.qq.com/doc/DY3ducUxmYkRUd2x2?pub=1&dver=2.1.0"
-                )
+                intent.putExtra(CommonField.EXTRA_TITLE, getString(R.string.register_agree_2))
+                var url = CommonField.POLICY_PREFIX
+                url += "?uin=$ANDROID_ID"
+                url += CommonField.SERVICE_POLICY_SUFFIX
+                intent.putExtra(CommonField.EXTRA_TEXT, url)
                 startActivity(intent)
             }
             tv_register_privacy_policy -> {//隐私政策
                 val intent = Intent(this, WebActivity::class.java)
-                intent.putExtra("title", getString(R.string.register_agree_4))
-                intent.putExtra("text", "https://privacy.qq.com")
+                intent.putExtra(CommonField.EXTRA_TITLE, getString(R.string.register_agree_4))
+                var url = CommonField.POLICY_PREFIX
+                url += "?uin=$ANDROID_ID"
+                url += CommonField.PRIVACY_POLICY_SUFFIX
+                intent.putExtra(CommonField.EXTRA_TEXT, url)
                 startActivity(intent)
             }
             phoneView.tv_register_to_country, phoneView.iv_register_to_country -> {
-                startActivityForResult(Intent(this, CountryCodeActivity::class.java), 100)
+                startActivityForResult(Intent(this, RegionActivity::class.java), 100)
+            }
+
+            emailView.tv_register_to_country_email, emailView.iv_register_to_country_email -> {
+                startActivityForResult(Intent(this, RegionActivity::class.java), 100)
             }
         }
     }
@@ -194,6 +228,7 @@ class RegisterActivity : PActivity(), RegisterView, View.OnClickListener {
 
     override fun showCountryCode(countryCode: String, countryName: String) {
         phoneView.tv_register_to_country.text = countryName
+        emailView.tv_register_to_country_email.text = countryName
         btn_register_get_code.changeType(phoneView.et_register_phone, presenter.getCountryCode())
     }
 
@@ -201,9 +236,8 @@ class RegisterActivity : PActivity(), RegisterView, View.OnClickListener {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 100) {
             data?.let {
-                it.getStringExtra(CommonField.COUNTRY_CODE)?.run {
-                    L.e("lurs=$this")
-                    presenter.setCountryCode(this)
+                it.getStringExtra(CommonField.REGION_ID)?.run {
+                    presenter.setCountry(this)
                 }
             }
         }

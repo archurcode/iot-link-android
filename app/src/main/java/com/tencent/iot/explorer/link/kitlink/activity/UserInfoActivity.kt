@@ -1,33 +1,59 @@
 package com.tencent.iot.explorer.link.kitlink.activity
 
 import android.Manifest
+import android.app.Dialog
 import android.content.Intent
+import android.os.SystemClock
 import android.text.TextUtils
+import android.view.Gravity
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup.MarginLayoutParams
+import android.widget.TextView
 import com.tencent.iot.explorer.link.App
 import com.tencent.iot.explorer.link.R
+import com.tencent.iot.explorer.link.core.log.L
+import com.tencent.iot.explorer.link.kitlink.consts.CommonField
 import com.tencent.iot.explorer.link.kitlink.popup.CameraPopupWindow
 import com.tencent.iot.explorer.link.kitlink.popup.CommonPopupWindow
 import com.tencent.iot.explorer.link.kitlink.popup.EditPopupWindow
+import com.tencent.iot.explorer.link.kitlink.util.CommonUtils
+import com.tencent.iot.explorer.link.kitlink.util.HttpRequest
+import com.tencent.iot.explorer.link.kitlink.util.MyCallback
 import com.tencent.iot.explorer.link.mvp.IPresenter
 import com.tencent.iot.explorer.link.mvp.presenter.UserInfoPresenter
 import com.tencent.iot.explorer.link.mvp.view.UserInfoView
-import com.tencent.iot.explorer.link.util.L
+import com.tencent.iot.explorer.link.util.AppInfoUtils
+import com.tencent.iot.explorer.link.util.SharePreferenceUtil
 import com.tencent.iot.explorer.link.util.T
+import com.tencent.iot.explorer.link.util.picture.imageselectorbrowser.ImageSelectorConstant.REQUEST_IMAGE
 import com.tencent.iot.explorer.link.util.picture.imp.ImageManager
 import com.tencent.iot.explorer.link.util.picture.imp.ImageSelectorUtils
 import kotlinx.android.synthetic.main.activity_user_info.*
+import kotlinx.android.synthetic.main.dialog_temperature.view.*
 import kotlinx.android.synthetic.main.menu_back_layout.*
+import java.util.*
+
 
 /**
  * 个人信息界面
  */
-class UserInfoActivity : PActivity(), UserInfoView, View.OnClickListener {
+class UserInfoActivity : PActivity(), UserInfoView, View.OnClickListener, View.OnLongClickListener {
 
     private lateinit var presenter: UserInfoPresenter
     private var popupWindow: CameraPopupWindow? = null
     private var commonPopupWindow: CommonPopupWindow? = null
     private var editPopupWindow: EditPopupWindow? = null
+    private lateinit var temperatureDialogView: View
+    private lateinit var bottomDialog: Dialog
+
+    private val counts = 5 //点击次数
+    private val duration = 3 * 1000.toLong() //规定有效时间
+    private val hits = LongArray(counts)
+
+    companion object {
+        const val TIMEZONE_REQUESTCODE = 100
+    }
 
     private var permissions = arrayOf(
         Manifest.permission.CAMERA,
@@ -47,6 +73,8 @@ class UserInfoActivity : PActivity(), UserInfoView, View.OnClickListener {
         presenter = UserInfoPresenter(this)
         iv_back.setColorFilter(resources.getColor(R.color.black_333333))
         tv_title.text = getString(R.string.personal_info)
+        temperatureDialogView = LayoutInflater.from(this).inflate(R.layout.dialog_temperature, null)
+        bottomDialog = Dialog(this, R.style.BottomDialog)
     }
 
     override fun onResume() {
@@ -56,16 +84,33 @@ class UserInfoActivity : PActivity(), UserInfoView, View.OnClickListener {
 
     override fun setListener() {
         iv_back.setOnClickListener { finish() }
-        user_info_portrait.setOnClickListener(this)
         tv_title_nick.setOnClickListener(this)
-        tv_title_telephone_number.setOnClickListener(this)
-        tv_title_modify_password.setOnClickListener(this)
         tv_user_info_logout.setOnClickListener(this)
+        tv_user_id.setOnLongClickListener(this)
+        tv_account_and_safety.setOnClickListener(this)
+
+        iv_avatar.setOnClickListener(this)
+        iv_avatar_arrow.setOnClickListener(this)
+        tv_title_avatar.setOnClickListener(this)
+
+        tv_temperature_unit_title.setOnClickListener(this)
+        tv_temperature_unit.setOnClickListener(this)
+        iv_temperature_unit_arrow.setOnClickListener(this)
+
+        iv_time_zone_arrow.setOnClickListener(this)
+        tv_time_zone_title.setOnClickListener(this)
+        tv_time_zone.setOnClickListener(this)
+        tv_empty_area0.setOnClickListener(this)
+        tv_empty_area.setOnClickListener(this)
+
+        temperatureDialogView.tv_fahrenheit.setOnClickListener(this)
+        temperatureDialogView.tv_celsius.setOnClickListener(this)
+        temperatureDialogView.tv_cancel.setOnClickListener(this)
     }
 
     override fun onClick(v: View?) {
         when (v) {
-            user_info_portrait -> {
+            tv_title_avatar, iv_avatar, iv_avatar_arrow -> {
                 if (checkPermissions(permissions))
                     showCameraPopup()
                 else requestPermission(permissions)
@@ -73,18 +118,39 @@ class UserInfoActivity : PActivity(), UserInfoView, View.OnClickListener {
             tv_title_nick -> {
                 showEditPopup()
             }
-            tv_title_telephone_number -> {
-
-            }
-            tv_title_modify_password -> {
-                if (TextUtils.isEmpty(App.data.userInfo.PhoneNumber)) {
-                    showCommonPopup()
-                } else {
-                    jumpActivity(ResetPasswordActivity::class.java)
-                }
-            }
             tv_user_info_logout -> {
                 presenter.logout()
+            }
+            tv_account_and_safety -> {
+                jumpActivity(AccountAndSafetyActivity::class.java)
+            }
+            tv_temperature_unit_title, tv_temperature_unit, iv_temperature_unit_arrow -> {// 温度单位
+                showTemperatureDialog()
+            }
+            tv_time_zone_title, tv_time_zone, iv_time_zone_arrow -> {// 时区
+                startActivityForResult(Intent(this, TimeZoneActivity::class.java), TIMEZONE_REQUESTCODE)
+            }
+            tv_empty_area0, tv_empty_area -> {// 连续点击五次复制AndroidID
+                System.arraycopy(hits, 1, hits, 0, hits.size - 1)
+                //实现左移，然后最后一个位置更新距离开机的时间，如果最后一个时间和最开始时间小于duration，即连续5次点击
+                hits[hits.size - 1] = SystemClock.uptimeMillis()
+                if (hits[0] >= SystemClock.uptimeMillis() - duration) {
+                    if (hits.size == 5) {
+                        // 获取AndroidID，并保存至剪切板
+                        AppInfoUtils.copy(this, CommonUtils.getAndroidID())
+                    }
+                }
+            }
+            temperatureDialogView.tv_fahrenheit -> {
+                presenter.setTemperatureUnit(getString(R.string.fahrenheit))
+                bottomDialog.dismiss()
+            }
+            temperatureDialogView.tv_celsius -> {
+                presenter.setTemperatureUnit(getString(R.string.celsius))
+                bottomDialog.dismiss()
+            }
+            temperatureDialogView.tv_cancel -> {
+                bottomDialog.dismiss()
             }
         }
     }
@@ -142,6 +208,11 @@ class UserInfoActivity : PActivity(), UserInfoView, View.OnClickListener {
         editPopupWindow?.show(user_info)
     }
 
+    private fun showRegion(region: String) {
+        if (!TextUtils.isEmpty(region))
+            tv_time_zone.text = region
+    }
+
     override fun permissionAllGranted() {
         showCameraPopup()
     }
@@ -153,13 +224,19 @@ class UserInfoActivity : PActivity(), UserInfoView, View.OnClickListener {
     override fun logout() {
         saveUser(null)
         App.data.clear()
-        jumpActivity(LoginActivity::class.java)
+        jumpActivity(GuideActivity::class.java)
+        App.data.activityList.forEach {
+            if (it !is GuideActivity) {
+                it.finish()
+            }
+        }
+        App.data.activityList.clear()
     }
 
     override fun showAvatar(imageUrl: String) {
         ImageManager.setImagePath(
             this,
-            user_info_portrait,
+            iv_avatar,
             imageUrl,
             R.mipmap.image_default_portrait
         )
@@ -175,10 +252,23 @@ class UserInfoActivity : PActivity(), UserInfoView, View.OnClickListener {
 
     override fun showUserInfo() {
         tv_nick.text = App.data.userInfo.NickName
-        tv_telephone_number.text = App.data.userInfo.PhoneNumber
+        tv_user_id.text = App.data.userInfo.UserID
         if (!TextUtils.isEmpty(App.data.userInfo.Avatar)) {
             showAvatar(App.data.userInfo.Avatar)
         }
+        presenter.getUserSetting()
+    }
+
+    override fun showTemperatureUnit(unit: String) {
+        if (unit == getString(R.string.celsius))
+            tv_temperature_unit.text = getString(R.string.celsius_unit)
+        else if (unit == getString(R.string.fahrenheit))
+            tv_temperature_unit.text = getString(R.string.fahrenheit_unit)
+    }
+
+    override fun showUserSetting() {
+        showTemperatureUnit(App.data.userSetting.TemperatureUnit)
+        showRegion(App.data.userSetting.Region)
     }
 
     override fun onBackPressed() {
@@ -205,15 +295,42 @@ class UserInfoActivity : PActivity(), UserInfoView, View.OnClickListener {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (data != null) {
-            val list = ImageSelectorUtils.getImageSelectorList(requestCode, resultCode, data)
-            if (list != null && list.size > 0) {
-                list.forEach {
-                    L.e("配图:$it")
-                    presenter.upload(this, it)
+        when (requestCode) {
+            REQUEST_IMAGE -> {// 头像上传
+                if (data != null) {
+                    val list = ImageSelectorUtils.getImageSelectorList(requestCode, resultCode, data)
+                    if (list != null && list.size > 0) {
+                        list.forEach {
+                            L.e("配图:$it")
+                            presenter.upload(this, it)
+                        }
+                    }
                 }
             }
+            TIMEZONE_REQUESTCODE -> {// 选择时区
+
+            }
         }
+    }
+
+    override fun onLongClick(v: View?): Boolean {
+        if (v is TextView) {
+            AppInfoUtils.copy(this@UserInfoActivity, v.text.toString())
+            T.show(getString(R.string.copy))
+        }
+        return true
+    }
+
+    private fun showTemperatureDialog() {
+        bottomDialog.setContentView(temperatureDialogView)
+        val params = temperatureDialogView.layoutParams as MarginLayoutParams
+        params.width = resources.displayMetrics.widthPixels - dp2px(8)
+        params.bottomMargin = dp2px(5)
+        temperatureDialogView.layoutParams = params
+        bottomDialog.setCanceledOnTouchOutside(true)
+        bottomDialog.window?.setGravity(Gravity.BOTTOM)
+        bottomDialog.window?.setWindowAnimations(R.style.BottomDialog_Animation)
+        bottomDialog.show()
     }
 
 }

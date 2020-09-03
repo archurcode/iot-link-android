@@ -1,12 +1,12 @@
 package com.tencent.iot.explorer.link.kitlink.activity
 
 import com.tencent.iot.explorer.link.R
+import com.tencent.iot.explorer.link.core.log.L
 import com.tencent.iot.explorer.link.kitlink.fragment.*
 import com.tencent.iot.explorer.link.kitlink.popup.CommonPopupWindow
 import com.tencent.iot.explorer.link.mvp.IPresenter
 import com.tencent.iot.explorer.link.mvp.presenter.GetBindDeviceTokenPresenter
 import com.tencent.iot.explorer.link.mvp.view.GetBindDeviceTokenView
-import com.tencent.iot.explorer.link.util.L
 import com.tencent.iot.explorer.link.util.T
 import com.tencent.iot.explorer.link.util.check.LocationUtil
 import kotlinx.android.synthetic.main.activity_soft_ap.*
@@ -58,7 +58,7 @@ class SoftApActivity : PActivity(), GetBindDeviceTokenView {
                 )
                 showFragment(wifiFragment, softAppStepFragment)
                 if (!LocationUtil.isLocationServiceEnable(this@SoftApActivity)) {
-                    T.showLonger("请您打开手机位置以便获取WIFI名称")
+                    T.showLonger(resources.getString(R.string.open_location_tip))
                 }
             }
         }

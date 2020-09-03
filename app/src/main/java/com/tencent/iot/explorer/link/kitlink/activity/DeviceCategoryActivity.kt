@@ -21,7 +21,8 @@ import com.example.qrcode.Constant
 import com.example.qrcode.ScannerActivity
 import com.tencent.iot.explorer.link.App
 import com.tencent.iot.explorer.link.R
-import com.tencent.iot.explorer.link.kitlink.device.DeviceInfo
+import com.tencent.iot.explorer.link.core.link.entity.DeviceInfo
+import com.tencent.iot.explorer.link.core.log.L
 import com.tencent.iot.explorer.link.kitlink.fragment.DeviceFragment
 import com.tencent.iot.explorer.link.kitlink.holder.DeviceListViewHolder
 import com.tencent.iot.explorer.link.kitlink.response.BaseResponse
@@ -31,9 +32,9 @@ import com.tencent.iot.explorer.link.kitlink.util.MyCallback
 import com.tencent.iot.explorer.link.kitlink.util.RequestCode
 import com.tencent.iot.explorer.link.mvp.IPresenter
 import com.tencent.iot.explorer.link.kitlink.customview.MyScrollView
-import com.tencent.iot.explorer.link.util.L
 import com.tencent.iot.explorer.link.util.T
 import com.tencent.iot.explorer.link.customview.recyclerview.CRecyclerView
+import com.tencent.iot.explorer.link.kitlink.consts.CommonField
 import kotlinx.android.synthetic.main.activity_device_category.*
 import kotlinx.android.synthetic.main.bluetooth_adapter_invalid.*
 import kotlinx.android.synthetic.main.menu_back_layout.*
@@ -170,7 +171,9 @@ class DeviceCategoryActivity  : PActivity(), MyCallback, CRecyclerView.RecyclerI
     }
 
     override fun permissionAllGranted() {
-        startActivityForResult(Intent(this, ScannerActivity::class.java), 103)
+        var intent = Intent(Intent(this, ScannerActivity::class.java))
+        intent.putExtra(Constant.EXTRA_IS_ENABLE_SCAN_FROM_PIC,true)
+        startActivityForResult(intent, CommonField.QR_CODE_REQUEST_CODE)
     }
 
     override fun permissionDenied(permission: String) {
@@ -181,13 +184,16 @@ class DeviceCategoryActivity  : PActivity(), MyCallback, CRecyclerView.RecyclerI
         when (v) {
             iv_scann -> {
                 if (checkPermissions(permissions)) {
-                    startActivityForResult(Intent(this, ScannerActivity::class.java), 103)
+                    var intent = Intent(Intent(this, ScannerActivity::class.java))
+                    intent.putExtra(Constant.EXTRA_IS_ENABLE_SCAN_FROM_PIC,true)
+                    startActivityForResult(intent, CommonField.QR_CODE_REQUEST_CODE)
                 } else {
                     requestPermission(permissions)
                 }
             }
             iv_question -> {
-                jumpActivity(HelpCenterActivity::class.java)
+//                jumpActivity(HelpCenterActivity::class.java)
+                jumpActivity(HelpWebViewActivity::class.java)
             }
             retry_to_scann01, retry_to_scann02 -> {
                 beginScanning()

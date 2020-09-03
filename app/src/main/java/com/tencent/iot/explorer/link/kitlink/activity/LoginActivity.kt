@@ -1,47 +1,51 @@
 package com.tencent.iot.explorer.link.kitlink.activity
 
 import android.Manifest
-import android.animation.Animator
-import android.animation.ObjectAnimator
+import android.app.AlertDialog
+import android.content.DialogInterface
 import android.content.Intent
+import android.os.Bundle
 import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
+import com.google.firebase.analytics.FirebaseAnalytics
 import com.tencent.iot.explorer.link.App
+import com.tencent.iot.explorer.link.ErrorCode
+import com.tencent.iot.explorer.link.ErrorMessage
 import com.tencent.iot.explorer.link.R
+import com.tencent.iot.explorer.link.core.log.L
 import com.tencent.iot.explorer.link.kitlink.consts.CommonField
 import com.tencent.iot.explorer.link.kitlink.entity.User
-import com.tencent.iot.explorer.link.kitlink.util.StatusBarUtil
-import com.tencent.iot.explorer.link.kitlink.util.WeChatLogin
+import com.tencent.iot.explorer.link.kitlink.response.BaseResponse
+import com.tencent.iot.explorer.link.kitlink.response.UserInfoResponse
+import com.tencent.iot.explorer.link.kitlink.util.*
 import com.tencent.iot.explorer.link.mvp.IPresenter
 import com.tencent.iot.explorer.link.mvp.presenter.LoginPresenter
 import com.tencent.iot.explorer.link.mvp.view.LoginView
-import com.tencent.iot.explorer.link.util.L
+import com.tencent.iot.explorer.link.util.SharePreferenceUtil
 import com.tencent.iot.explorer.link.util.T
 import com.tencent.iot.explorer.link.util.keyboard.KeyBoardUtils
-import com.tencent.iot.explorer.link.util.keyboard.OnSoftKeyBoardListener
-import com.tencent.iot.explorer.link.util.keyboard.SoftKeyBoard
-import kotlinx.android.synthetic.main.activity_login.*
+import kotlinx.android.synthetic.main.activity_login2.*
+import kotlinx.android.synthetic.main.activity_register.*
+import kotlinx.android.synthetic.main.activity_set_password.*
+import kotlinx.android.synthetic.main.layout_account_passwd_login.view.*
 import kotlinx.android.synthetic.main.layout_email_login.view.*
+import kotlinx.android.synthetic.main.layout_phone_forgot_pwd.view.*
 import kotlinx.android.synthetic.main.layout_phone_login.view.*
-import kotlin.math.absoluteValue
+import kotlinx.android.synthetic.main.layout_phone_register.view.*
+import kotlinx.android.synthetic.main.layout_verify_code_login.view.*
+import kotlinx.android.synthetic.main.menu_back_layout.*
 
-/**
- * 手机号登录界面
- */
-class LoginActivity : PActivity(), LoginView, View.OnClickListener, WeChatLogin.OnLoginListener {
+class LoginActivity  : PActivity(), LoginView, View.OnClickListener, WeChatLogin.OnLoginListener  {
 
     private lateinit var presenter: LoginPresenter
-    private lateinit var phoneView: View
-    private lateinit var emailView: View
-    private lateinit var showAnim: ObjectAnimator
-    private lateinit var hideAnim: ObjectAnimator
-    private lateinit var showAnim1: ObjectAnimator
-    private lateinit var hideAnim1: ObjectAnimator
 
-    //true为手机号，false为邮箱
-    private var loginType = true
-    private var keyBoard: SoftKeyBoard? = null
+    private lateinit var accoutPasswdLoginView: View
+    private lateinit var verifyCodeLoginView: View
+    private var mFirebaseAnalytics: FirebaseAnalytics? = null
+    private var fromTag = ""
+    private var accountType = false //true为手机号，false为邮箱
+    private var accountForAutoFill = ""
 
     private val permissions = arrayOf(
         Manifest.permission.RECEIVE_SMS,
@@ -49,254 +53,217 @@ class LoginActivity : PActivity(), LoginView, View.OnClickListener, WeChatLogin.
         Manifest.permission.SEND_SMS
     )
 
-    override fun getContentView(): Int {
-        return R.layout.activity_login
+    override fun onResume() {
+        super.onResume()
+        if (!TextUtils.isEmpty(fromTag) && fromTag == CommonField.WAY_SOURCE) {
+            return
+        }
+//        logout(this)
     }
 
     override fun getPresenter(): IPresenter? {
         return presenter
     }
 
-    override fun onResume() {
-        super.onResume()
-        logout(this)
-    }
-
-    override fun onPause() {
-        KeyBoardUtils.hideKeyBoard(this, login)
-        L.e("onPause")
-        super.onPause()
-    }
-
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        val account = intent?.getStringExtra("account")?:""
-        val pwd = intent?.getStringExtra("password")?:""
-        if (!TextUtils.isEmpty(account) && !TextUtils.isEmpty(pwd)) {
-            when (account.contains("@")) {
-                true -> {
-                    presenter.setEmailData(account, pwd)
-                    presenter.emailCommit()
-                }
-                else -> {
-                    presenter.setPhoneData(account, pwd)
-                    presenter.phoneCommit()
-                }
-            }
-        }
+    override fun getContentView(): Int {
+        return R.layout.activity_login2
     }
 
     override fun initView() {
+        App.data.regionId = "1"
+        App.data.region = "ap-guangzhou"
         if (!checkPermissions(permissions)) {
             requestPermission(permissions)
         } else {
             permissionAllGranted()
         }
-
+        intent.getStringExtra("from")?.let {
+            fromTag = it
+        }
+        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this@LoginActivity)
         presenter = LoginPresenter(this)
-        keyBoard = SoftKeyBoard(this)
+        iv_back.setColorFilter(resources.getColor(R.color.black_333333))
+        tv_title.text = getString(R.string.verify_code_login)
         initViewPager()
-        //设置白色状态栏
-        StatusBarUtil.setStatusBarDarkTheme(this, false)
+
         if (!TextUtils.isEmpty(App.data.getToken())) {
+            var userId = SharePreferenceUtil.getString(this@LoginActivity, App.CONFIG, CommonField.USER_ID)
+            mFirebaseAnalytics!!.setUserId(userId);
             startActivity(Intent(this, MainActivity::class.java))
             finish()
             return
         }
-        getIntentData()
-        addLoginAnim()
-        addRegisterAnim()
-    }
-
-    private fun addLoginAnim() {
-        val mY = dp2px(100).toFloat()
-        val duration = 300L
-        showAnim = ObjectAnimator.ofFloat(card_login_container, "translationY", 0f, -mY)
-        showAnim.duration = duration
-        showAnim.addUpdateListener {
-            val offset = it.animatedValue.toString().toFloat().absoluteValue
-            ll_login_logo.alpha = 1 - offset / mY
+        onNewIntentIn()
+        if (!CommonUtils.isChineseSystem()) {
+            accoutPasswdLoginView.tv_login_to_country_bypsswd.text = getString(R.string.country_china_en)
+            verifyCodeLoginView.tv_login_to_country_byverifycode.text = getString(R.string.country_china_en)
         }
-        hideAnim = ObjectAnimator.ofFloat(card_login_container, "translationY", -mY, 0f)
-        hideAnim.duration = duration
-        hideAnim.addUpdateListener {
-            val offset = it.animatedValue.toString().toFloat().absoluteValue
-            ll_login_logo.alpha = 1 - offset / mY
-        }
-        hideAnim.addListener(object : Animator.AnimatorListener {
-            override fun onAnimationRepeat(animation: Animator?) {
-            }
-
-            override fun onAnimationEnd(animation: Animator?) {
-                phoneView.clearFocus()
-                emailView.clearFocus()
-            }
-
-            override fun onAnimationCancel(animation: Animator?) {
-            }
-
-            override fun onAnimationStart(animation: Animator?) {
-            }
-        })
-    }
-
-    private fun addRegisterAnim() {
-        val mY = dp2px(100).toFloat()
-        val duration = 300L
-        showAnim1 = ObjectAnimator.ofFloat(card_login_register, "translationY", 0f, mY)
-        showAnim1.duration = duration
-        showAnim1.addUpdateListener {
-            val offset = it.animatedValue.toString().toFloat().absoluteValue
-            card_login_register.alpha = 1 - offset / mY
-        }
-        hideAnim1 = ObjectAnimator.ofFloat(card_login_register, "translationY", mY, 0f)
-        hideAnim1.duration = duration
-        hideAnim1.addUpdateListener {
-            val offset = it.animatedValue.toString().toFloat().absoluteValue
-            card_login_register.alpha = 1 - offset / mY
-        }
-    }
-
-    private fun getIntentData() {
-        intent?.let {
-            if (!TextUtils.isEmpty(intent.getStringExtra(GetCodeActivity.PHONE))) {
-                phoneView.et_login_phone.setText(intent.getStringExtra(GetCodeActivity.PHONE))
-                showPhoneLogin()
-                return
-            }
-            if (!TextUtils.isEmpty(intent.getStringExtra(GetCodeActivity.EMAIL))) {
-                emailView.et_login_email.setText(intent.getStringExtra(GetCodeActivity.EMAIL))
-                showEmailLogin()
-                return
-            }
-        }
-        showPhoneLogin()
     }
 
     private fun initViewPager() {
-        phoneView = LayoutInflater.from(this).inflate(R.layout.layout_phone_login, null)
-        emailView = LayoutInflater.from(this).inflate(R.layout.layout_email_login, null)
-        phoneView.run {
-            et_login_phone.addClearImage(iv_login_phone_clear)
-            et_login_pwd.addShowImage(
-                iv_login_show_pwd,
-                R.mipmap.icon_visible,
-                R.mipmap.icon_invisible
-            )
-            et_login_pwd.addClearImage(iv_login_pwd_clear)
+        accoutPasswdLoginView = LayoutInflater.from(this).inflate(R.layout.layout_account_passwd_login, null)
+        verifyCodeLoginView = LayoutInflater.from(this).inflate(R.layout.layout_verify_code_login, null)
+        accoutPasswdLoginView.et_login_phone_or_email.addClearImage(accoutPasswdLoginView.iv_login_phone_or_email_clear)
+        accoutPasswdLoginView.et_login_phone_or_email_passwd.addClearImage(accoutPasswdLoginView.iv_login_phone_or_email_passwd_clear)
+        verifyCodeLoginView.et_login_phone_or_email_byverifycode.addClearImage(verifyCodeLoginView.iv_login_phone_or_email_clear_byverifycode)
+        vp_login2.addViewToList(verifyCodeLoginView)
+        vp_login2.addViewToList(accoutPasswdLoginView)
+    }
 
+    private fun onNewIntentIn() {
+        intent?.let {
+            val account = intent?.getStringExtra("account")?:""
+            val pwd = intent?.getStringExtra("password")?:""
+            if (!TextUtils.isEmpty(account) && !TextUtils.isEmpty(pwd)) {
+                when (account.contains("@")) {
+                    true -> {
+                        presenter.setEmailData(account, pwd)
+                        presenter.emailCommit()
+                    }
+                    else -> {
+                        presenter.setPhoneData(account, pwd)
+                        presenter.phoneCommit()
+                    }
+                }
+            }
         }
-        emailView.run {
-            et_login_email.addClearImage(iv_login_email_clear)
-            et_login_email_pwd.addClearImage(iv_login_email_pwd_clear)
-            et_login_email_pwd.addShowImage(
-                iv_login_email_show_pwd,
-                R.mipmap.icon_visible,
-                R.mipmap.icon_invisible
-            )
-        }
-        vp_login.addViewToList(phoneView)
-        vp_login.addViewToList(emailView)
-        vp_login.setScrollDuration(1000)
     }
 
     override fun setListener() {
-        login_back.setOnClickListener(this)
-        login.setOnClickListener(this)
-        btn_login_commit.setOnClickListener(this)
-        tv_login_to_register.setOnClickListener(this)
-        phoneView.run {
-            tv_login_tab_email.setOnClickListener(this@LoginActivity)
-            tv_login_to_forgot.setOnClickListener(this@LoginActivity)
-            tv_login_to_country.setOnClickListener(this@LoginActivity)
-        }
-        emailView.run {
-            tv_login_tab_phone.setOnClickListener(this@LoginActivity)
-            tv_login_email_to_forgot.setOnClickListener(this@LoginActivity)
-        }
-        ll_wechat_login.setOnClickListener(this)
-        keyBoard?.setSoftKeyBoardShowListener(
-            phoneView.et_login_phone,
-            object : OnSoftKeyBoardListener {
-                override fun onHideSoftKeyboard(myOldY: Int) {
-                    L.e("onHideSoftKeyboard")
-                    if (hideAnim.isRunning) {
-                        hideAnim.end()
-                    }
-                    if (hideAnim1.isRunning) {
-                        hideAnim1.end()
-                    }
-                    hideAnim.start()
-                    hideAnim1.start()
-                }
+        iv_back.setOnClickListener { finish() }
+        accoutPasswdLoginView.tv_use_verify_code_to_login.setOnClickListener(this)
+        accoutPasswdLoginView.btn_account_passwd_login.setOnClickListener(this)
+        accoutPasswdLoginView.tv_account_passwd_forget_passwd.setOnClickListener(this)
+        accoutPasswdLoginView.iv_login_to_country_bypsswd.setOnClickListener(this)
 
-                override fun onShowSoftKeyboard(newY: Int, keyHeight: Int) {
-                    if (hideAnim.isRunning) {
-                        hideAnim.end()
-                    }
-                    if (hideAnim1.isRunning) {
-                        hideAnim1.end()
-                    }
-                    showAnim.start()
-                    showAnim1.start()
-                }
-            })
+        verifyCodeLoginView.tv_use_passwd_to_login.setOnClickListener(this)
+        verifyCodeLoginView.btn_account_verifycode_login.setOnClickListener(this)
+        verifyCodeLoginView.tv_get_verify_code.setOnClickListener(this)
+        verifyCodeLoginView.iv_login_to_country_byverifycode.setOnClickListener(this)
+
+        iv_wechat_login.setOnClickListener(this)
     }
 
     override fun onClick(v: View?) {
         when (v) {
-            login_back -> {
-                finish()
+            verifyCodeLoginView.tv_use_passwd_to_login -> {// 显示密码登录界面
+                showPasswdLogin()
             }
-            login -> {
-                KeyBoardUtils.hideKeyBoard(this, v)
+            accoutPasswdLoginView.tv_use_verify_code_to_login -> {// 显示验证码登录界面
+                showVerifyCodeLogin()
             }
-
-            emailView.tv_login_tab_phone -> {
-                changeLoginWay()
-            }
-            phoneView.tv_login_tab_email -> {
-                changeLoginWay()
-            }
-            ll_wechat_login -> {
+            iv_wechat_login -> {// 微信登录
                 WeChatLogin.getInstance().login(this, this)
             }
-            btn_login_commit -> {
-                when (loginType) {
-                    true -> {
-                        presenter.setPhoneData(
-                            phoneView.et_login_phone.text.trim().toString(),
-                            phoneView.et_login_pwd.text.trim().toString()
-                        )
-                        presenter.phoneCommit()
+            accoutPasswdLoginView.btn_account_passwd_login -> {// 密码登录
+                val account = accoutPasswdLoginView.et_login_phone_or_email.text.trim().toString()
+                val passwd = accoutPasswdLoginView.et_login_phone_or_email_passwd.text.trim().toString()
+                if (!account.contains("@")) { // 手机登录
+                    presenter.setPhoneData(account, passwd)
+                    presenter.phoneCommit()
+                } else { // 邮箱登录
+                    presenter.setEmailData(account, passwd)
+                    presenter.emailCommit()
+                }
+                KeyBoardUtils.hideKeyBoard(this, accoutPasswdLoginView.et_login_phone_or_email_passwd)
+            }
+            verifyCodeLoginView.btn_account_verifycode_login -> {// 验证码登录
+                val account = verifyCodeLoginView.et_login_phone_or_email_byverifycode.text.trim().toString()
+                val verifycode = verifyCodeLoginView.et_login_phone_or_email_verifycode.text.trim().toString()
+                if (!account.contains("@")) {// 手机登录
+                    presenter.setPhone(account)
+                    if (!TextUtils.isEmpty(verifycode)) {
+                        presenter.setVerifyCode(verifycode)
+                        presenter.phoneVerifyCodeCommit()
+                    } else {
+                        T.show(getString(R.string.phone_verifycode_empty))
                     }
-                    false -> {
-                        presenter.setEmailData(
-                            emailView.et_login_email.text.trim().toString(),
-                            emailView.et_login_email_pwd.text.trim().toString()
-                        )
-                        presenter.emailCommit()
+                } else {// 邮箱登录
+                    presenter.setEmail(account)
+                    if (!TextUtils.isEmpty(verifycode)) {
+                        presenter.setVerifyCode(verifycode)
+                        presenter.emailVerifyCodeCommit()
+                    } else {
+                        T.show(getString(R.string.email_verifycode_empty))
                     }
                 }
             }
-            tv_login_to_register -> {
-                Intent(this, RegisterActivity::class.java).run {
-                    putExtra(RegisterActivity.ACCOUNT_TYPE, loginType)
-                    startActivity(this)
+            accoutPasswdLoginView.tv_account_passwd_forget_passwd -> {// 忘记密码
+                val account = accoutPasswdLoginView.et_login_phone_or_email.text.trim().toString()
+                if (!account.contains("@")) {
+                    accountType = true
                 }
-            }
-            phoneView.tv_login_to_forgot, emailView.tv_login_email_to_forgot -> {
                 Intent(this, ForgotPasswordActivity::class.java).run {
-                    putExtra(RegisterActivity.ACCOUNT_TYPE, loginType)
+                    putExtra(RegisterActivity.ACCOUNT_TYPE, accountType)
                     startActivity(this)
                 }
             }
-            phoneView.tv_login_to_country -> {
-                startActivityForResult(Intent(this, CountryCodeActivity::class.java), 100)
+            verifyCodeLoginView.tv_get_verify_code -> {// 获取验证码
+                val account = verifyCodeLoginView.et_login_phone_or_email_byverifycode.text.trim().toString()
+                accountForAutoFill = account
+                if (!account.contains("@")) {
+                    accountType = true
+                    presenter.setPhone(account)
+                    presenter.requestPhoneCode()
+                } else {
+                    accountType = false
+                    presenter.setEmail(account)
+                    presenter.requestEmailCode()
+                }
+            }
+            accoutPasswdLoginView.iv_login_to_country_bypsswd -> {// 账号密码登录时选则国家
+                startActivityForResult(Intent(this, RegionActivity::class.java), 100)
+            }
+            verifyCodeLoginView.iv_login_to_country_byverifycode -> {// 验证码登录时选则国家
+                startActivityForResult(Intent(this, RegionActivity::class.java), 100)
             }
         }
     }
 
+    private fun showVerifyCodeLogin() {
+        tv_title.text = getString(R.string.verify_code_login)
+        vp_login2.setCurrentItem(0, true)
+    }
+
+    private fun showPasswdLogin() {
+        tv_title.text = getString(R.string.account_passwd_login)
+        vp_login2.setCurrentItem(1, true)
+    }
+
+    private fun getUserId(user: User) {
+        HttpRequest.instance.userInfo(object : MyCallback {
+            override fun fail(msg: String?, reqCode: Int) {
+                if (TextUtils.isEmpty(msg)) {
+                    this@LoginActivity.loginFail(getString(R.string.get_userId_failed))
+                    return
+                }
+                this@LoginActivity.loginFail(msg!!)
+            }
+            override fun success(response: BaseResponse, reqCode: Int) {
+                if (response.isSuccess()) {
+                    response.parse(UserInfoResponse::class.java)?.Data?.run {
+                        App.data.userInfo = this
+                        SharePreferenceUtil.saveString(this@LoginActivity, App.CONFIG, CommonField.USER_ID, App.data.userInfo.UserID)
+                        mFirebaseAnalytics!!.setUserId(App.data.userInfo.UserID)
+                        saveUser(user)
+                        T.show(getString(R.string.login_success))
+                        if (TextUtils.isEmpty(fromTag)) {
+                            startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                        } else {
+                            val data = Intent()
+                            data.putExtra("data", AppData.instance.getToken())
+                            setResult(CommonField.H5_REQUEST_LOGIN_CODE)
+                        }
+                        finish()
+                    }
+                } else {
+                    this@LoginActivity.loginFail(getString(R.string.get_userId_failed))
+                }
+            }
+        })
+    }
+
+    // Wechat login callback method start
     override fun onSuccess(reqCode: String) {
         presenter.wechatLogin(reqCode)
     }
@@ -308,80 +275,51 @@ class LoginActivity : PActivity(), LoginView, View.OnClickListener, WeChatLogin.
     override fun onFail(msg: String) {
         T.show(msg)
     }
+    // Wechat login callback method end
 
-    /**
-     * 切换登录方式
-     */
-    private fun changeLoginWay() {
-        loginType = !loginType
-        when (loginType) {
-            true -> {
-                showPhoneLogin()
-            }
-            false -> {
-                showEmailLogin()
-            }
-        }
-    }
-
-    private fun showPhoneLogin() {
-        vp_login.currentItem = 0
-        btn_login_commit.removeEditText(emailView.et_login_email)
-        btn_login_commit.removeEditText(emailView.et_login_email_pwd)
-        btn_login_commit.addEditText(
-            phoneView.et_login_phone,
-            phoneView.tv_login_phone_hint,
-            presenter.getCountryCode()
-        )
-        btn_login_commit.addEditText(phoneView.et_login_pwd, phoneView.tv_login_pwd_hint)
-    }
-
-    private fun showEmailLogin() {
-        vp_login.currentItem = 1
-        btn_login_commit.removeEditText(phoneView.et_login_phone)
-        btn_login_commit.removeEditText(phoneView.et_login_pwd)
-        btn_login_commit.addEditText(
-            emailView.et_login_email,
-            emailView.tv_login_email_hint,
-            "email"
-        )
-        btn_login_commit.addEditText(
-            emailView.et_login_email_pwd,
-            emailView.tv_login_email_pwd_hint
-        )
-    }
-
+    // LoginView callback method start
     override fun loginSuccess(user: User) {
-        saveUser(user)
-        T.show(getString(R.string.login_success))
-        startActivity(Intent(this, MainActivity::class.java))
-        finish()
+        getUserId(user)
     }
-
     override fun loginFail(msg: String) {
         T.show(msg)
     }
-
-    override fun showCountryCode(countryName: String, countryCode: String) {
-        phoneView.tv_login_to_country.text = "+$countryCode"
-        btn_login_commit.changeType(phoneView.et_login_phone, countryCode)
+    override fun loginFail(response: BaseResponse) {
+        T.show(response.msg)
+        if (response.code == ErrorCode.REQ_ERROR_CODE) {
+            val errMsg = ErrorMessage.parseErrorMessage(response.data.toString())
+            if (errMsg.Code == ErrorCode.DATA_MSG.ErrorUserNotExists) {
+//                T.show("您的账号暂未注册，请前往腾讯连连小程序或APP绑定账号后重新登录")
+                Intent(this, RegisterActivity::class.java).run {
+                    putExtra(RegisterActivity.ACCOUNT_TYPE, accountType)
+                    putExtra(RegisterActivity.ACCOUNT_NUMBER, accountForAutoFill)
+                    startActivity(this)
+                }
+            }
+        }
     }
+    override fun showCountryCode(countryName: String, countryCode: String) {
+        accoutPasswdLoginView.tv_login_to_country_bypsswd.text = countryName
+        verifyCodeLoginView.tv_login_to_country_byverifycode.text = countryName
+    }
+
+    override fun sendVerifyCodeSuccess() {
+        T.show(getString(R.string.send_verifycode_success))
+    }
+
+    override fun sendVerifyCodeFail(msg: ErrorMessage) {
+        T.show(msg.Message)
+    }
+    // LoginView callback method end
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 100) {
             data?.let {
-                it.getStringExtra(CommonField.COUNTRY_CODE)?.run {
-                    L.e(this)
-                    presenter.setCountryCode(this)
+                it.getStringExtra(CommonField.REGION_ID)?.run {
+                    presenter.setCountry(this)
                 }
             }
         }
     }
-
-    override fun onDestroy() {
-        keyBoard?.destroy()
-        super.onDestroy()
-    }
-
 }

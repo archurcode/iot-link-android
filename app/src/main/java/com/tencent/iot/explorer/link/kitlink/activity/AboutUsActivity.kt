@@ -1,10 +1,25 @@
 package com.tencent.iot.explorer.link.kitlink.activity
 
+import android.app.Activity
 import android.content.Intent
-import android.text.TextUtils
+import android.os.Build
+import android.provider.Settings
+import android.view.View
+import androidx.annotation.RequiresApi
+import com.alibaba.fastjson.JSONObject
+import com.tencent.iot.explorer.link.App
+import com.tencent.iot.explorer.link.BuildConfig
 import com.tencent.iot.explorer.link.R
-import com.tencent.iot.explorer.link.kitlink.activity.BaseActivity
-import com.tencent.iot.explorer.link.util.AppInfoUtils
+import com.tencent.iot.explorer.link.customview.dialog.ProgressDialog
+import com.tencent.iot.explorer.link.customview.dialog.UpgradeDialog
+import com.tencent.iot.explorer.link.customview.dialog.UpgradeInfo
+import com.tencent.iot.explorer.link.kitlink.consts.CommonField
+import com.tencent.iot.explorer.link.kitlink.response.BaseResponse
+import com.tencent.iot.explorer.link.kitlink.util.CommonUtils
+import com.tencent.iot.explorer.link.kitlink.util.FileUtils
+import com.tencent.iot.explorer.link.kitlink.util.HttpRequest
+import com.tencent.iot.explorer.link.kitlink.util.MyCallback
+import com.tencent.iot.explorer.link.util.T
 import kotlinx.android.synthetic.main.activity_about_us.*
 import kotlinx.android.synthetic.main.menu_back_layout.*
 
@@ -13,6 +28,10 @@ import kotlinx.android.synthetic.main.menu_back_layout.*
  */
 class AboutUsActivity : BaseActivity() {
 
+    val INSTALL_PERMISS_CODE = 1
+
+    private val ANDROID_ID = CommonUtils.getAndroidID()
+
     override fun getContentView(): Int {
         return R.layout.activity_about_us
     }
@@ -20,30 +39,107 @@ class AboutUsActivity : BaseActivity() {
     override fun initView() {
         iv_back.setColorFilter(resources.getColor(R.color.black_333333))
         tv_title.text = getString(R.string.about_me)
-        AppInfoUtils.getVersionName(this).let {
-            tv_about_app_version.text = if (TextUtils.isEmpty(it)) {
-                "获取失败"
-            } else {
-                "V$it"
-            }
-        }
-
+        tv_about_app_version.text = resources.getString(R.string.current_version) + BuildConfig.VERSION_NAME
     }
 
     override fun setListener() {
         iv_back.setOnClickListener { finish() }
-        tv_title_privacy_policy.setOnClickListener {
-            val intent = Intent(this, WebActivity::class.java)
-            intent.putExtra("title", getString(R.string.register_agree_4))
-            intent.putExtra("text", "https://privacy.qq.com")
-            startActivity(intent)
+        tv_title_privacy_policy.setOnClickListener(listener)
+        tv_title_user_agreement.setOnClickListener(listener)
+        tv_about_app_version.setOnClickListener(listener)
+    }
+
+    private var listener = object : View.OnClickListener {
+        @RequiresApi(Build.VERSION_CODES.O)
+        override fun onClick(v: View?) {
+            when (v) {
+                tv_title_user_agreement -> {
+                    val intent = Intent(this@AboutUsActivity, WebActivity::class.java)
+                    intent.putExtra(CommonField.EXTRA_TITLE, getString(R.string.register_agree_2))
+                    var url = CommonField.POLICY_PREFIX
+                    url += "?uin=$ANDROID_ID"
+                    url += CommonField.SERVICE_POLICY_SUFFIX
+                    intent.putExtra(CommonField.EXTRA_TEXT, url)
+                    startActivity(intent)
+                }
+
+                tv_title_privacy_policy -> {
+                    val intent = Intent(this@AboutUsActivity, WebActivity::class.java)
+                    intent.putExtra(CommonField.EXTRA_TITLE, getString(R.string.register_agree_4))
+                    var url = CommonField.POLICY_PREFIX
+                    url += "?uin=$ANDROID_ID"
+                    url += CommonField.PRIVACY_POLICY_SUFFIX
+                    intent.putExtra(CommonField.EXTRA_TEXT, url)
+                    startActivity(intent)
+                }
+
+                tv_about_app_version -> {
+                    startUpdateApp()
+                }
+            }
         }
-        tv_title_user_agreement.setOnClickListener {
-            val intent = Intent(this, WebActivity::class.java)
-            intent.putExtra("title", getString(R.string.register_agree_2))
-//            intent.putExtra("text", "user_agreementV1.0.htm")
-            intent.putExtra("text", "https://docs.qq.com/doc/DY3ducUxmYkRUd2x2?pub=1&dver=2.1.0")
-            startActivity(intent)
+    }
+
+    private fun startUpdateApp() {
+
+        HttpRequest.instance.getLastVersion(object: MyCallback{
+            override fun fail(msg: String?, reqCode: Int) {
+                T.show(msg)
+            }
+
+            override fun success(response: BaseResponse, reqCode: Int) {
+                if (response == null) {     // 无响应数据
+                    T.show(resources.getString(R.string.unknown_error))
+
+                } else if (response != null && response.isSuccess() && response.data != null) { // 返回响应数据实体
+                    var json = response.data as JSONObject
+                    var info = UpgradeInfo.convertJson2UpgradeInfo(json)
+                    if (App.needUpgrade(info!!.version)) {
+                        var dialog = UpgradeDialog(this@AboutUsActivity, info)
+                        dialog.setOnDismisListener(upgradeDialogListener)
+                        dialog.show()
+                    } else {
+                        T.show(resources.getString(R.string.no_need_upgrade))
+                    }
+
+                } else if (response.isSuccess() && response.data == null) { // 返回的数据实体无实际内容，不需要更新
+                    T.show(resources.getString(R.string.no_need_upgrade))
+
+                } else if (!response.isSuccess()) {  // 请求失败，提示失败原因
+                    T.show(response.msg)
+                }
+            }
+        })
+    }
+
+    private var upgradeDialogListener = object: UpgradeDialog.OnDismisListener {
+        override fun OnClickUpgrade(url: String?) {
+            var dialog = ProgressDialog(this@AboutUsActivity, url)
+            dialog.setOnDismisListener(downloadListener)
+            dialog.show()
         }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        // 获取安装未知源 app 的权限，调用下载接口
+        if (requestCode == INSTALL_PERMISS_CODE && resultCode == Activity.RESULT_OK) {
+            startUpdateApp()
+        }
+    }
+
+    private var downloadListener = object: ProgressDialog.OnDismisListener {
+        override fun onDownloadSuccess(path: String) {
+            FileUtils.installApk(this@AboutUsActivity, path)
+        }
+
+        override fun onDownloadFailed() {
+            T.show(resources.getString(R.string.download_failed))
+        }
+
+        override fun onDownloadProgress(currentProgress: Int, size: Int) {
+
+        }
+
     }
 }
