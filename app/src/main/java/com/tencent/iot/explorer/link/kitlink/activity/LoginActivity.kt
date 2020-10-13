@@ -1,14 +1,12 @@
 package com.tencent.iot.explorer.link.kitlink.activity
 
 import android.Manifest
-import android.app.AlertDialog
-import android.content.DialogInterface
 import android.content.Intent
-import android.os.Bundle
 import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
 import com.google.firebase.analytics.FirebaseAnalytics
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.tencent.iot.explorer.link.App
 import com.tencent.iot.explorer.link.ErrorCode
 import com.tencent.iot.explorer.link.ErrorMessage
@@ -87,8 +85,9 @@ class LoginActivity  : PActivity(), LoginView, View.OnClickListener, WeChatLogin
         initViewPager()
 
         if (!TextUtils.isEmpty(App.data.getToken())) {
-            var userId = SharePreferenceUtil.getString(this@LoginActivity, App.CONFIG, CommonField.USER_ID)
-            mFirebaseAnalytics!!.setUserId(userId);
+            val userId = SharePreferenceUtil.getString(this@LoginActivity, App.CONFIG, CommonField.USER_ID)
+            FirebaseCrashlytics.getInstance().setUserId(userId)
+            mFirebaseAnalytics!!.setUserId(userId)
             startActivity(Intent(this, MainActivity::class.java))
             finish()
             return
@@ -244,7 +243,8 @@ class LoginActivity  : PActivity(), LoginView, View.OnClickListener, WeChatLogin
                     response.parse(UserInfoResponse::class.java)?.Data?.run {
                         App.data.userInfo = this
                         SharePreferenceUtil.saveString(this@LoginActivity, App.CONFIG, CommonField.USER_ID, App.data.userInfo.UserID)
-                        mFirebaseAnalytics!!.setUserId(App.data.userInfo.UserID)
+                        FirebaseCrashlytics.getInstance().setUserId(App.data.userInfo.UserID)
+                        mFirebaseAnalytics?.setUserId(App.data.userInfo.UserID)
                         saveUser(user)
                         T.show(getString(R.string.login_success))
                         if (TextUtils.isEmpty(fromTag)) {

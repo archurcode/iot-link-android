@@ -1,19 +1,26 @@
 package com.tencent.iot.explorer.link.kitlink.fragment
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Bundle
 import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.core.content.ContextCompat
+import com.alibaba.fastjson.JSON
+import com.squareup.picasso.Picasso
 import com.tencent.iot.explorer.link.App
 import com.tencent.iot.explorer.link.R
+import com.tencent.iot.explorer.link.core.log.L
+import com.tencent.iot.explorer.link.customview.FullGridView
 import com.tencent.iot.explorer.link.kitlink.activity.SmartConnectActivity
 import com.tencent.iot.explorer.link.kitlink.activity.SoftApActivity
+import com.tencent.iot.explorer.link.kitlink.consts.CommonField
+import com.tencent.iot.explorer.link.kitlink.consts.LoadViewTxtType
 import com.tencent.iot.explorer.link.kitlink.entity.CategoryDeviceEntity
 import com.tencent.iot.explorer.link.kitlink.entity.ProdConfigDetailEntity
 import com.tencent.iot.explorer.link.kitlink.entity.RecommDeviceEntity
@@ -25,24 +32,20 @@ import com.tencent.iot.explorer.link.kitlink.util.JsonManager
 import com.tencent.iot.explorer.link.kitlink.util.MyCallback
 import com.tencent.iot.explorer.link.kitlink.util.RequestCode
 import com.tencent.iot.explorer.link.mvp.IPresenter
-import com.squareup.picasso.Picasso
-import com.tencent.iot.explorer.link.core.log.L
 import com.tencent.iot.explorer.link.util.T
 import kotlinx.android.synthetic.main.fragment_devices.*
-import org.w3c.dom.Text
 import kotlin.math.ceil
 
 
-class DeviceFragment(c: Context) : BaseFragment(), MyCallback, AdapterView.OnItemClickListener{
+class DeviceFragment : BaseFragment(), MyCallback, AdapterView.OnItemClickListener{
 
-    private var mContext : Context = c
-    private var devicesGridView : GridView? = null
-    private var recommendDevicesGridView : GridView? = null
+    private var devicesGridView : FullGridView? = null
+    private var recommendDevicesGridView : FullGridView? = null
     private var categoryList = arrayListOf<CategoryDeviceEntity>()
     private var productList = arrayListOf<RecommDeviceEntity>()
     private var isRecommDeviceClicked = false
+    @Volatile
     private var recommDeviceIndex = 0
-
 
     private var permissions = arrayOf(
         Manifest.permission.ACCESS_WIFI_STATE,
@@ -60,26 +63,16 @@ class DeviceFragment(c: Context) : BaseFragment(), MyCallback, AdapterView.OnIte
     }
 
     override fun startHere(view: View) {
-    }
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
         val categoryKey = arguments!!.getString("CategoryKey", "CategoryKey")
-        val view = inflater.inflate(getContentView(), container, false)
-        if (getContentView() != 0) {
-            devicesGridView = view.findViewById(R.id.gv_devices)
-            recommendDevicesGridView = view.findViewById(R.id.gv_recommend_devices)
-            setListener()
-            HttpRequest.instance.getRecommList(categoryKey, this)
-        }
-        return view
+        devicesGridView = view.findViewById(R.id.gv_devices)
+        recommendDevicesGridView = view.findViewById(R.id.gv_recommend_devices)
+        setListener()
+        HttpRequest.instance.getRecommList(categoryKey, this)
     }
 
     override fun fail(msg: String?, reqCode: Int) {
         L.e(msg ?: "")
+        T.show(msg)
     }
 
     override fun success(response: BaseResponse, reqCode: Int) {
@@ -89,16 +82,18 @@ class DeviceFragment(c: Context) : BaseFragment(), MyCallback, AdapterView.OnIte
                     response.parse(RecommDeviceListResponse::class.java)?.run {
                         if (ProductList.size > 0) {
                             productList = ProductList
-                            recommendDevicesGridView!!.adapter = GridAdapter(mContext, ProductList, true)
-                            setGridViewHeightByChildren(recommendDevicesGridView!!)
+                            recommendDevicesGridView!!.adapter = GridAdapter(activity!!, ProductList, true)
+//                            setGridViewHeightByChildren(recommendDevicesGridView!!)
                         } else {
-                            tv_recommend.visibility = View.GONE
-                            split_line.visibility = View.GONE
-                            gv_recommend_devices.visibility = View.GONE
+                            if (tv_recommend != null) tv_recommend.visibility = View.GONE
+                            if (split_line != null) split_line.visibility = View.GONE
+                            if (gv_recommend_devices != null) gv_recommend_devices.visibility = View.GONE
                         }
                         categoryList = CategoryList
-                        devicesGridView!!.adapter = GridAdapter(mContext, CategoryList, false)
-                        setGridViewHeightByChildren(devicesGridView!!)
+                        if (devicesGridView != null && activity != null) {
+                            devicesGridView!!.adapter = GridAdapter(activity!!, CategoryList, false)
+//                            setGridViewHeightByChildren(devicesGridView!!)
+                        }
                     }
                 }
             }
@@ -107,14 +102,24 @@ class DeviceFragment(c: Context) : BaseFragment(), MyCallback, AdapterView.OnIte
                     response.parse(ProductsConfigResponse::class.java)?.run {
                         val config = JsonManager.parseJson(Data[0].Config, ProdConfigDetailEntity::class.java)
                         val wifiConfigTypeList = config.WifiConfTypeList
-                        if (wifiConfigTypeList == "{}") {
-                            jumpActivity(SmartConnectActivity::class.java)
+                        var productId = ""
+                        if (!TextUtils.isEmpty(config.profile)) {
+                            var jsonProFile = JSON.parseObject(config.profile)
+                            if (jsonProFile != null && jsonProFile.containsKey("ProductId") &&
+                                !TextUtils.isEmpty(jsonProFile.getString("ProductId"))) {
+                                productId = jsonProFile.getString("ProductId")
+                            }
+                        }
+
+                        if (wifiConfigTypeList.equals("{}") || TextUtils.isEmpty(wifiConfigTypeList)) {
+                            startActivityWithExtra(SmartConnectActivity::class.java, productId)
+
                         } else if (wifiConfigTypeList.contains("[")) {
                             val typeList = JsonManager.parseArray(wifiConfigTypeList)
                             if (typeList.size > 0 && typeList[0] == "softap") {
-                                jumpActivity(SoftApActivity::class.java)
+                                startActivityWithExtra(SoftApActivity::class.java, productId)
                             } else {
-                                jumpActivity(SmartConnectActivity::class.java)
+                                startActivityWithExtra(SmartConnectActivity::class.java, productId)
                             }
                         }
                     }
@@ -123,10 +128,19 @@ class DeviceFragment(c: Context) : BaseFragment(), MyCallback, AdapterView.OnIte
         }
     }
 
+    private fun startActivityWithExtra(cls: Class<*>?, productId: String) {
+        var intent = Intent(context, cls)
+        if (!TextUtils.isEmpty(productId)) {
+            intent.putExtra(CommonField.LOAD_VIEW_TXT_TYPE, LoadViewTxtType.LoadRemoteViewTxt.ordinal)
+            intent.putExtra(CommonField.PRODUCT_ID, productId)
+        }
+        startActivity(intent)
+    }
+
     override fun onItemClick(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
         if (view != null && parent != null) {
 
-            if(ContextCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION)
+            if(ContextCompat.checkSelfPermission(activity!!, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED){
                 when (parent.id) {
                     R.id.gv_recommend_devices->{
@@ -175,18 +189,18 @@ class DeviceFragment(c: Context) : BaseFragment(), MyCallback, AdapterView.OnIte
         recommendDevicesGridView?.onItemClickListener = this
     }
 
-    private fun setGridViewHeightByChildren(gridView : GridView) {
-        val adaper: ListAdapter? = gridView.adapter ?: return
-        var totalHeight = 0
-        val lineNum = ceil((adaper?.count?.toDouble() ?: 0.0) / 3.0)
-        val item: View? = adaper?.getView(0,null, gridView)
-        if (item != null) {
-            totalHeight = ((App.data.screenWith/5 + if (lineNum > 1) 120 else 50) * lineNum).toInt()
-        }
-        val params = gridView.layoutParams
-        params.height = totalHeight
-        gridView.layoutParams = params
-    }
+//    private fun setGridViewHeightByChildren(gridView : GridView) {
+//        val adaper: ListAdapter? = gridView.adapter ?: return
+//        var totalHeight = 0
+//        val lineNum = ceil((adaper?.count?.toDouble() ?: 0.0) / 3.0)
+//        val item: View? = adaper?.getView(0,null, gridView)
+//        if (item != null) {
+//            totalHeight = ((App.data.screenWith/5 + if (lineNum > 1) 120 else 50) * lineNum).toInt()
+//        }
+//        val params = gridView.layoutParams
+//        params.height = totalHeight
+//        gridView.layoutParams = params
+//    }
 
     class GridAdapter : BaseAdapter {
         var deviceList : List<Any>? = null

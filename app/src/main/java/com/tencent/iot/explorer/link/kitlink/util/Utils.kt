@@ -1,5 +1,8 @@
 package com.tencent.iot.explorer.link.kitlink.util
 
+import android.text.TextUtils
+import com.tencent.iot.explorer.link.core.log.L
+import java.util.*
 
 object Utils {
 
@@ -53,27 +56,38 @@ object Utils {
         return 0
     }
 
+    fun getLang(): String {
+        var local = Locale.getDefault().toString()
+        if (TextUtils.isEmpty(local)) {
+            L.d("getLang return default lang(zh-CN)")
+            return "zh-CN" // 默认时返回中文类型
+        }
+        var tmp = local
+        var eleArray = tmp.split("_")
+        if (eleArray.size >= 3) {
+            tmp = eleArray.get(0) + "_" + eleArray.get(1)
+        }
+        var ret = tmp.replace("_", "-")
+
+        L.d("getLang return $ret")
+        return ret
+    }
+
+    // 获取 url 字符串参数对应的 value
+    fun getUrlParamValue(url: String, name: String?): String? {
+        val paramsStr = url.substring(url.indexOf("?") + 1, url.length)
+        val split: MutableMap<String, String> = hashMapOf()
+        var params = paramsStr.split("&")
+        for (paramKV in params) {
+            var kv = paramKV.split("=")
+            if (kv.size == 2) {
+                split[kv.get(0)] = kv.get(1)
+            }
+        }
+        return split.get(name)
+    }
+
 //    @JvmStatic
 //    fun main(args: Array<String>) {
-//        System.out.println("XXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-//        System.out.println(getFirstSeriesNumFromStr("XX0000XX"))
-//        System.out.println(getFirstSeriesNumFromStr("XX0000XX012xxx89xx"))
-//        System.out.println(getFirstSeriesNumFromStr("XX0000XX3"))
-//        System.out.println(getFirstSeriesNumFromStr("XX0000XX1"))
-//        System.out.println(getFirstSeriesNumFromStr("0000XX2"))
-//        System.out.println(getFirstSeriesNumFromStr("00123X"))
-//        System.out.println(getFirstSeriesNumFromStr("00123"))
-//        System.out.println(getFirstSeriesNumFromStr("001230X"))
-//        System.out.println(getFirstSeriesNumFromStr("001230"))
-//        System.out.println(getFirstSeriesNumFromStr("123"))
-//        System.out.println(getFirstSeriesNumFromStr("1230"))
-//        System.out.println(getFirstSeriesNumFromStr("XX001230"))
-//        System.out.println(getFirstSeriesNumFromStr("XX00123"))
-//        System.out.println(getFirstSeriesNumFromStr("XXXXXX"))
-//        System.out.println(getFirstSeriesNumFromStr("null"))
-//        System.out.println(getFirstSeriesNumFromStr("99"))
-//        System.out.println(getFirstSeriesNumFromStr("99XX"))
-//        System.out.println(getFirstSeriesNumFromStr("99XX123"))
-//        System.out.println(getFirstSeriesNumFromStr("99XX123lal"))
 //    }
 }
